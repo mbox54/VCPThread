@@ -2,8 +2,7 @@
 // VCPThread.cpp : Defines the class behaviors for the application.
 //
 
-#include "pch.h"
-#include "framework.h"
+#include "stdafx.h"
 #include "VCPThread.h"
 #include "VCPThreadDlg.h"
 
@@ -53,7 +52,7 @@ BOOL CVCPThreadApp::InitInstance()
 	CWinApp::InitInstance();
 
 
-	AfxEnableControlContainer();
+	//AfxEnableControlContainer();
 
 
 	// Standard initialization

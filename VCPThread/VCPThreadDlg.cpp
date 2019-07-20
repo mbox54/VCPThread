@@ -2,11 +2,9 @@
 // VCPThreadDlg.cpp : implementation file
 //
 
-#include "pch.h"
-#include "framework.h"
+#include "stdafx.h"
 #include "VCPThread.h"
 #include "VCPThreadDlg.h"
-#include "afxdialogex.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -59,12 +57,15 @@ CVCPThreadDlg::CVCPThreadDlg(CWnd* pParent /*=nullptr*/)
 void CVCPThreadDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_EDIT_COMMAND, m_EditCommand);
+	DDX_Control(pDX, IDC_EDIT_OUTPUT, m_EditOutput);
 }
 
 BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_BN_CLICKED(IDC_BUTTON_CONNECT, &CVCPThreadDlg::OnBnClickedButtonConnect)
 END_MESSAGE_MAP()
 
 
@@ -153,3 +154,14 @@ HCURSOR CVCPThreadDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+
+
+void CVCPThreadDlg::ExecuteCommand()
+{
+
+}
+
+void CVCPThreadDlg::OnBnClickedButtonConnect()
+{
+	// TODO: Add your control notification handler code here
+}

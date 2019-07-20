@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "KeyEdit.h"
+
 
 // CVCPThreadDlg dialog
 class CVCPThreadDlg : public CDialog
@@ -17,7 +19,7 @@ public:
 	enum { IDD = IDD_VCPTHREAD_DIALOG };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV support
 
 
@@ -31,4 +33,17 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+
+
+public:
+	CString m_strCommand;
+
+	void ExecuteCommand();
+
+//	CString m_strEditOutput;
+//	CString m_strEditCommand;
+	afx_msg void OnBnClickedButtonConnect();
+
+	CKeyEdit m_EditCommand;
+	CEdit m_EditOutput;
 };
