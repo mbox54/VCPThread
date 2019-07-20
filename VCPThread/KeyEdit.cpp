@@ -55,7 +55,7 @@ void CKeyEdit::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 
 		CVCPThreadDlg* pDlg = (CVCPThreadDlg*)GetParent();
 		//GetWindowText(pDlg->m_strCommand);
-		//
+		pDlg->ExecuteCommand();
 
 
 		//pDlg->GetNextDlgTabItem(this)->SetFocus();

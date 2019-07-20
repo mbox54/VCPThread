@@ -38,6 +38,8 @@ protected:
 public:
 	CString m_strCommand;
 
+	void Trace(LPCTSTR szFmt, ...);
+
 	void ExecuteCommand();
 
 //	CString m_strEditOutput;
@@ -46,4 +48,5 @@ public:
 
 	CKeyEdit m_EditCommand;
 	CEdit m_EditOutput;
+	afx_msg void OnBnClickedButtonClearlog();
 };

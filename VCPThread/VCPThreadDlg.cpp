@@ -66,6 +66,7 @@ BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON_CONNECT, &CVCPThreadDlg::OnBnClickedButtonConnect)
+	ON_BN_CLICKED(IDC_BUTTON_CLEARLOG, &CVCPThreadDlg::OnBnClickedButtonClearlog)
 END_MESSAGE_MAP()
 
 
@@ -156,12 +157,44 @@ HCURSOR CVCPThreadDlg::OnQueryDragIcon()
 
 
 
+void CVCPThreadDlg::Trace(LPCTSTR szFmt, ...)
+{
+	CString str;
+
+	// Format the message text
+	va_list argptr;
+	va_start(argptr, szFmt);
+	str.FormatV(szFmt, argptr);
+	va_end(argptr);
+
+	str.Replace(_T("\n"), _T("\r\n"));
+
+	CString strWndText;
+	m_EditOutput.GetWindowText(strWndText);
+	strWndText += str;
+	m_EditOutput.SetWindowText(strWndText);
+
+	//	m_TraceWnd.SetSel(str.GetLength()-1, str.GetLength()-2, FALSE);
+	m_EditOutput.LineScroll(-m_EditOutput.GetLineCount());
+	m_EditOutput.LineScroll(m_EditOutput.GetLineCount() - 4);
+}
+
 void CVCPThreadDlg::ExecuteCommand()
 {
+	// Update command text
+	m_EditCommand.GetWindowText(m_strCommand);
 
+	// output in log
+	Trace(_T("%s\n"), m_strCommand);
 }
 
 void CVCPThreadDlg::OnBnClickedButtonConnect()
 {
 	// TODO: Add your control notification handler code here
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonClearlog()
+{
+	m_EditOutput.SetWindowText(_T(""));
 }
