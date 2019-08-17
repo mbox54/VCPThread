@@ -23,13 +23,13 @@
     <ProjectGuid>{FFA4051C-5164-41F0-846E-ECD2069B64AC}</ProjectGuid>
     <Keyword>MFCProj</Keyword>
     <RootNamespace>VCPThread</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc>Dynamic</UseOfMfc>
   </PropertyGroup>
@@ -46,7 +46,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc>Dynamic</UseOfMfc>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -187,6 +187,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="COMPort.h" />
     <ClInclude Include="KeyEdit.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="stdafx.h" />
@@ -195,6 +196,8 @@
     <ClInclude Include="VCPThreadDlg.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="COMPort.cpp" />
+    <ClCompile Include="COMPort_overlap.cpp" />
     <ClCompile Include="KeyEdit.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="VCPThread.cpp" />

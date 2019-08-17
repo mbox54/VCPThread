@@ -50,6 +50,7 @@ END_MESSAGE_MAP()
 
 CVCPThreadDlg::CVCPThreadDlg(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_VCPTHREAD_DIALOG, pParent)
+	, m_strEdit_PortAddr(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -59,6 +60,7 @@ void CVCPThreadDlg::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_EDIT_COMMAND, m_EditCommand);
 	DDX_Control(pDX, IDC_EDIT_OUTPUT, m_EditOutput);
+	DDX_Text(pDX, IDC_EDIT_COMPORT_ADDR, m_strEdit_PortAddr);
 }
 
 BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
@@ -102,6 +104,8 @@ BOOL CVCPThreadDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	// TODO: Add extra initialization here
+	InitProg();
+
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -188,9 +192,234 @@ void CVCPThreadDlg::ExecuteCommand()
 	Trace(_T("%s\n"), m_strCommand);
 }
 
+int CVCPThreadDlg::InitProg()
+{
+	// Printout in the basic command line window.
+	Trace(_T("Cypress Basic UART Communication Test\n\n"));
+
+	// Output control State
+	Trace(_T("Enter Master COM Port (1-99): \n"));
+
+
+	return 0;
+}
+
+int CVCPThreadDlg::ConnectDevice()
+{
+	// Define Local Variables.
+	HANDLE hMaster = INVALID_HANDLE_VALUE;
+
+	UpdateData(TRUE);
+	DWORD dwComNum = (DWORD)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
+
+	// > Connect to USBUART Device
+	// Input Conf Parameter
+	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
+
+	// > Open USBUART Device	
+	char szPort[COM_PORT_STRING_LEN];
+	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
+	int iResult = COMPort_Open(&m_hPort, dwComNum, 0);
+
+	if (iResult != COM_PORT_OP_SUCCESS)
+	{
+		Trace(_T("Open failed! \n"));
+
+		return iResult;
+	}
+
+	// Output control State
+	Trace(_T("Open ...[OK] \n"));
+
+	// > Set COM Port Config
+	//iResult = COMPort_SetConfig(&m_hPort, UART_3M_BAUDRATE, 8, ONESTOPBIT, ONESTOPBIT, 1, 0);
+	iResult = COMPort_SetConfig(&m_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
+
+	if (iResult != COM_PORT_OP_SUCCESS)
+	{
+		return iResult;
+	}
+
+	// Start Listen Port
+	PortListen();
+
+	return 0;
+}
+
+int CVCPThreadDlg::PortListen()
+{
+	/////////////////////////////////////////////////////////
+	// Test, we short the Rx with Tx.
+	/////////////////////////////////////////////////////////
+	DCB dcb;
+
+	UCHAR wrBuffer[USBUART_BUFFER_SIZE];
+	UCHAR rdBuffer[USBUART_BUFFER_SIZE];
+	DWORD dwWritten = 0;
+
+	memset(wrBuffer, 0, sizeof(wrBuffer));
+	memset(rdBuffer, 0, sizeof(rdBuffer));
+
+	for (int nCount = 0; nCount < sizeof(wrBuffer); nCount++)
+	{
+		wrBuffer[nCount] = nCount;
+	}
+
+
+	//   // Let us perform a simple write of 64 bytes of data.
+	//DWORD dwNumBytesWritten;
+	//iResult = COMPort_Write(&hPort, wrBuffer, &dwNumBytesWritten);
+
+	//if (iResult != COM_PORT_OP_SUCCESS)
+	//{
+	//	return iResult;
+	//}
+
+
+	//BOOL bWriteStatus;
+
+	//   // Let us read the data that we wrote.
+	//   DWORD dwRead = 0;
+	//   DWORD dwBytesRead = 0;
+	//   DWORD dwSizeLeftToRead = sizeof(rdBuffer);
+	//   BOOL bReadStatus = FALSE;
+	//   
+	//DWORD dwNumBytesRead;
+	//iResult = COMPort_Read(&hPort, rdBuffer, &dwNumBytesRead);
+
+	//if (iResult != COM_PORT_OP_SUCCESS)
+	//{
+	//	return iResult;
+	//}
+
+	//   
+	//   // Perform a comparison operation to make sure that we have data integrity.
+	//   if (memcmp(wrBuffer, rdBuffer, dwRead) != 0 )
+	//   {
+	//       _tprintf(L"\n\n\nREAD and WRITE data comparison failed.......\n\n");
+	//       CloseHandle(hPort);
+	//       return -3;
+	//   }
+
+	//   _tprintf(L"\n\n\nSuccessfully Completed Flow Control Enabled UART operation .......\n\n");
+
+
+
+	if (!SetCommMask(m_hPort, EV_RXCHAR))
+	{
+		// [ Error setting communications event mask ]
+
+		return -1;
+	}
+
+
+	// Test RX Listen example
+
+
+	// Set Values to Transfer - Get
+	for (BYTE kk = 0; kk < 8; kk++)
+	{
+		wrBuffer[kk] = 0x10 + kk;
+
+	}
+
+	// ** TRANSFER
+	DWORD dwNumBytesWritten;
+	BYTE iResult = 0;
+	iResult = COMPort_Write8(&m_hPort, wrBuffer, &dwNumBytesWritten);
+
+	if (iResult != COM_PORT_OP_SUCCESS)
+	{
+		return iResult;
+	}
+
+	// ** RECEIVE
+	DWORD dwCommEvent;
+	DWORD dwRead;
+	char  chRead;
+
+	WORD usReceiveCounter = 0;
+
+	while(1)
+	{
+
+		if (WaitCommEvent(m_hPort, &dwCommEvent, NULL))
+		{
+			// [ Read OP defined ]
+
+			BYTE ucByteIndex = 0;
+
+			BYTE bAct = 1;
+			while (bAct)
+			{
+				if (ReadFile(m_hPort, &chRead, 1, &dwRead, NULL))
+				{
+					// [ Read OP success ]
+
+					if (dwRead)
+					{
+						// [ NOT EMPTY ]
+
+						rdBuffer[ucByteIndex] = chRead;
+						ucByteIndex++;
+
+						//Trace(_T("."));
+					}
+					else
+					{
+						// [ EMPTY ]
+
+						// end operation
+						bAct = 0;
+					}
+				}
+				else
+				{
+					// [ An error occurred in the ReadFile call ]
+
+					break;
+				}
+
+			}//while (bAct) 
+
+			 // end string
+			rdBuffer[ucByteIndex] = '\0';
+
+			// output
+			Trace(_T("Receive %03d: %s \n"), usReceiveCounter, CString(rdBuffer));
+
+			usReceiveCounter++;
+
+		}
+		else
+		{
+			// [ Error in WaitCommEvent ]
+
+			break;
+		}
+
+	}//for (; ; )
+
+
+	 // > Close COM Port
+	iResult = COMPort_Close(&m_hPort);
+
+	Trace(_T("\n\n\n End of program, Port closed.  \n\n"));
+
+
+	if (iResult != COM_PORT_OP_SUCCESS)
+	{
+		return iResult;
+	}
+
+
+	return 0;
+}
+
+
 void CVCPThreadDlg::OnBnClickedButtonConnect()
 {
-	// TODO: Add your control notification handler code here
+	ConnectDevice();
 }
 
 

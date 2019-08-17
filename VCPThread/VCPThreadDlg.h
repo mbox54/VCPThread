@@ -5,7 +5,7 @@
 #pragma once
 
 #include "KeyEdit.h"
-
+#include "COMPort.h"
 
 // CVCPThreadDlg dialog
 class CVCPThreadDlg : public CDialog
@@ -42,6 +42,14 @@ public:
 
 	void ExecuteCommand();
 
+	int InitProg();
+
+	// CDC
+	HANDLE m_hPort;
+	int ConnectDevice();
+	int PortListen();
+
+
 //	CString m_strEditOutput;
 //	CString m_strEditCommand;
 	afx_msg void OnBnClickedButtonConnect();
@@ -49,4 +57,5 @@ public:
 	CKeyEdit m_EditCommand;
 	CEdit m_EditOutput;
 	afx_msg void OnBnClickedButtonClearlog();
+	CString m_strEdit_PortAddr;
 };

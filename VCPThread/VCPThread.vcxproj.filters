@@ -33,6 +33,9 @@
     <ClInclude Include="KeyEdit.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="COMPort.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VCPThread.cpp">
@@ -45,6 +48,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="COMPort.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="COMPort_overlap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
