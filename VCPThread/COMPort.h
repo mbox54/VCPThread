@@ -34,8 +34,8 @@ Data Definitions
 /** ****************
 Functions
 *** **************** */
-int COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped);
-int COMPort_SetConfig(HANDLE * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl);
+BYTE COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped);
+BYTE COMPort_SetConfig(HANDLE * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl);
 int COMPort_Read(HANDLE * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead);
 int COMPort_Write(HANDLE * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritten);
 int COMPort_Write8(HANDLE * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritten);

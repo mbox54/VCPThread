@@ -1,4 +1,3 @@
-
 // VCPThreadDlg.cpp : implementation file
 //
 
@@ -11,8 +10,36 @@
 #endif
 
 
-// CAboutDlg dialog used for App About
+////////////////////////////////////////////////////////////////////////////////
+// Module functions
+////////////////////////////////////////////////////////////////////////////////
+BYTE Open_ComPort(BYTE dwComNum)
+{
+	// > Open USBUART Device	
+	char szPort[COM_PORT_STRING_LEN];
+	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
+	int iResult = COMPort_Open(&g_hPort, dwComNum, 0);
 
+	// check OP state
+	if (iResult != COM_PORT_OP_SUCCESS)
+	{
+		// [FAILED]
+
+		// abort
+		return iResult;
+	}
+
+	// > Set COM Port Config
+	//iResult = COMPort_SetConfig(&m_hPort, UART_3M_BAUDRATE, 8, ONESTOPBIT, ONESTOPBIT, 1, 0);
+	iResult = COMPort_SetConfig(&g_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
+
+	return iResult;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// CAboutDlg dialog used for App About
+////////////////////////////////////////////////////////////////////////////////
 class CAboutDlg : public CDialog
 {
 public:
@@ -31,9 +58,11 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
+
 CAboutDlg::CAboutDlg() : CDialog(IDD_ABOUTBOX)
 {
 }
+
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
@@ -44,10 +73,9 @@ BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 END_MESSAGE_MAP()
 
 
+////////////////////////////////////////////////////////////////////////////////
 // CVCPThreadDlg dialog
-
-
-
+////////////////////////////////////////////////////////////////////////////////
 CVCPThreadDlg::CVCPThreadDlg(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_VCPTHREAD_DIALOG, pParent)
 	, m_strEdit_PortAddr(_T(""))
@@ -183,6 +211,14 @@ void CVCPThreadDlg::Trace(LPCTSTR szFmt, ...)
 	m_EditOutput.LineScroll(m_EditOutput.GetLineCount() - 4);
 }
 
+
+void CVCPThreadDlg::Thread_ListenComPort(void)
+{
+	// create new thread with no params
+	AfxBeginThread(Sample1, NULL);
+}
+
+
 void CVCPThreadDlg::ExecuteCommand()
 {
 	// Update command text
@@ -191,6 +227,7 @@ void CVCPThreadDlg::ExecuteCommand()
 	// output in log
 	Trace(_T("%s\n"), m_strCommand);
 }
+
 
 int CVCPThreadDlg::InitProg()
 {
@@ -204,11 +241,9 @@ int CVCPThreadDlg::InitProg()
 	return 0;
 }
 
-int CVCPThreadDlg::ConnectDevice()
-{
-	// Define Local Variables.
-	HANDLE hMaster = INVALID_HANDLE_VALUE;
 
+BYTE CVCPThreadDlg::ConnectDevice()
+{
 	UpdateData(TRUE);
 	DWORD dwComNum = (DWORD)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
 
@@ -216,32 +251,21 @@ int CVCPThreadDlg::ConnectDevice()
 	// Input Conf Parameter
 	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
 
-	// > Open USBUART Device	
-	char szPort[COM_PORT_STRING_LEN];
-	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
-	int iResult = COMPort_Open(&m_hPort, dwComNum, 0);
-
-	if (iResult != COM_PORT_OP_SUCCESS)
+	// > Open USBUART Device
+	BYTE ucResult = Open_ComPort(dwComNum);
+	
+	if (ucResult != COM_PORT_OP_SUCCESS)
 	{
 		Trace(_T("Open failed! \n"));
 
-		return iResult;
+		return ucResult;
 	}
 
 	// Output control State
 	Trace(_T("Open ...[OK] \n"));
 
-	// > Set COM Port Config
-	//iResult = COMPort_SetConfig(&m_hPort, UART_3M_BAUDRATE, 8, ONESTOPBIT, ONESTOPBIT, 1, 0);
-	iResult = COMPort_SetConfig(&m_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
-
-	if (iResult != COM_PORT_OP_SUCCESS)
-	{
-		return iResult;
-	}
-
 	// Start Listen Port
-	PortListen();
+	//PortListen();
 
 	return 0;
 }
@@ -324,14 +348,14 @@ int CVCPThreadDlg::PortListen()
 	}
 
 	// ** TRANSFER
-	DWORD dwNumBytesWritten;
-	BYTE iResult = 0;
-	iResult = COMPort_Write8(&m_hPort, wrBuffer, &dwNumBytesWritten);
+	//DWORD dwNumBytesWritten;
+	//BYTE iResult = 0;
+	//iResult = COMPort_Write8(&m_hPort, wrBuffer, &dwNumBytesWritten);
 
-	if (iResult != COM_PORT_OP_SUCCESS)
-	{
-		return iResult;
-	}
+	//if (iResult != COM_PORT_OP_SUCCESS)
+	//{
+	//	return iResult;
+	//}
 
 	// ** RECEIVE
 	DWORD dwCommEvent;
@@ -402,14 +426,14 @@ int CVCPThreadDlg::PortListen()
 
 
 	 // > Close COM Port
-	iResult = COMPort_Close(&m_hPort);
+	BYTE iResult2 = COMPort_Close(&m_hPort);
 
 	Trace(_T("\n\n\n End of program, Port closed.  \n\n"));
 
 
-	if (iResult != COM_PORT_OP_SUCCESS)
+	if (iResult2 != COM_PORT_OP_SUCCESS)
 	{
-		return iResult;
+		return iResult2;
 	}
 
 
@@ -427,3 +451,5 @@ void CVCPThreadDlg::OnBnClickedButtonClearlog()
 {
 	m_EditOutput.SetWindowText(_T(""));
 }
+
+

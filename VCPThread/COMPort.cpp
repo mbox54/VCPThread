@@ -5,18 +5,21 @@
 //
 // Half-Duplex realisation, Synchronous, non-Overlapped
 //
-#include "stdafx.h"
 
+////////////////////////////////////////////////////////////////////////////////
+// Include
+////////////////////////////////////////////////////////////////////////////////
+#include "stdafx.h"
 #include "COMPort.h"
 
 
-/** ****************
-Functions
-*** **************** */
+////////////////////////////////////////////////////////////////////////////////
+// Functions
+////////////////////////////////////////////////////////////////////////////////
 // NOTE:
 // 1 = Overlapped
 // 0 = non-overlapped
-int COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
+BYTE COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
 {
 	// > Open PORT
 	char szPort[COM_PORT_STRING_LEN];
@@ -60,7 +63,7 @@ int COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
 
 	if (*hPort == INVALID_HANDLE_VALUE)
 	{
-		return -1;
+		return COM_PORT_OP_MISMATCH;
 	}
 
 
@@ -96,7 +99,7 @@ int COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
 }
 
 
-int COMPort_SetConfig(HANDLE * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl)
+BYTE COMPort_SetConfig(HANDLE * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl)
 {
 	// NOTE:
 	// NAMES:

@@ -4,10 +4,32 @@
 
 #pragma once
 
+////////////////////////////////////////////////////////////////////////////////
+// Include
+////////////////////////////////////////////////////////////////////////////////
 #include "KeyEdit.h"
 #include "COMPort.h"
 
+////////////////////////////////////////////////////////////////////////////////
+// globals
+////////////////////////////////////////////////////////////////////////////////
+
+// ComPort handler
+static HANDLE g_hPort;
+
+// ComPort Rx_Buf
+static BYTE gv_RxBuf[256];
+
+// ComPort open Proc
+static BYTE Open_ComPort(BYTE dwComNum);
+
+// ComPort Rx_Listen Proc
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // CVCPThreadDlg dialog
+////////////////////////////////////////////////////////////////////////////////
 class CVCPThreadDlg : public CDialog
 {
 // Construction
@@ -37,25 +59,23 @@ protected:
 
 public:
 	CString m_strCommand;
-
+	
 	void Trace(LPCTSTR szFmt, ...);
-
 	void ExecuteCommand();
-
 	int InitProg();
+	
 
 	// CDC
-	HANDLE m_hPort;
-	int ConnectDevice();
+	BYTE ConnectDevice();
 	int PortListen();
+	void Thread_ListenComPort(void);
 
-
-//	CString m_strEditOutput;
-//	CString m_strEditCommand;
-	afx_msg void OnBnClickedButtonConnect();
-
+	// control settings
+	CString m_strEdit_PortAddr;
 	CKeyEdit m_EditCommand;
 	CEdit m_EditOutput;
+
+	afx_msg void OnBnClickedButtonConnect();
 	afx_msg void OnBnClickedButtonClearlog();
-	CString m_strEdit_PortAddr;
+	
 };
