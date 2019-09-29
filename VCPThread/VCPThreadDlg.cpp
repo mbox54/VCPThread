@@ -13,6 +13,51 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Module functions
 ////////////////////////////////////////////////////////////////////////////////
+// support
+void Trace_Custom(CEdit* pEdit, CString str)
+{
+	CString strWndText;
+	pEdit->GetWindowText(strWndText);
+	strWndText += str;
+	pEdit->SetWindowText(strWndText);
+
+	pEdit->SetSel(str.GetLength() - 1, str.GetLength() - 2, FALSE);
+	pEdit->LineScroll(-pEdit->GetLineCount());
+	pEdit->LineScroll(pEdit->GetLineCount() - 4);
+}
+
+
+void OutputLog(LPCTSTR szFmt, ...)
+{
+	// get control from memory
+	CWnd* pEditLog = AfxGetApp()->m_pMainWnd->GetDlgItem(IDC_EDIT_OUTPUT);
+	HWND hWND = pEditLog->GetSafeHwnd();
+
+	// check control appropriate class
+	wchar_t str_buf[256];
+	GetClassName(hWND, str_buf, 255);
+	if (StrCmpIW(str_buf, _T("Edit")) == 0)
+	{
+		// [VALID]
+
+		// > perform op
+		CEdit* pEdit = static_cast<CEdit*>(pEditLog);
+
+		// format the message text
+		CString str;
+		va_list argptr;
+		va_start(argptr, szFmt);
+		str.FormatV(szFmt, argptr);
+		va_end(argptr);
+
+		str.Replace(_T("\n"), _T("\r\n"));
+
+		// output to control
+		Trace_Custom(pEdit, str);
+	}
+}
+
+// ComPort
 BYTE Open_ComPort(BYTE dwComNum)
 {
 	// > Open USBUART Device	
@@ -34,6 +79,126 @@ BYTE Open_ComPort(BYTE dwComNum)
 	iResult = COMPort_SetConfig(&g_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
 
 	return iResult;
+}
+
+
+/////////////////////////////////////////////////////////
+// Test, we short the Rx with Tx.
+/////////////////////////////////////////////////////////
+UINT ListenRx_ComPort(LPVOID rawInput)
+{
+	// > Open File (config)
+	// default name
+	char* file_name = "rx_log.txt";
+
+	// try open
+	FILE* fs = fopen(file_name, "w");
+
+
+	// reset buffer
+	memset(gv_RxBuf, 0, sizeof(USBUART_BUFFER_SIZE));
+
+	// config ComPort Rx mode
+	if (!SetCommMask(g_hPort, EV_RXCHAR))
+//	if (!SetCommMask(g_hPort, EV_RXFLAG))
+	{
+		// [ Error setting communications event mask ]
+
+		return COM_PORT_OP_FAILURE;
+	}
+
+
+	// ** RECEIVE
+	DWORD dwCommEvent;
+	DWORD dwRead;
+	char  chRead;
+
+	WORD usReceiveCounter = 0;
+	while (1)
+	{
+		if (WaitCommEvent(g_hPort, &dwCommEvent, NULL))
+		{
+			// [ Read OP defined ]
+
+			WORD usRxRoundCount = 0;
+			BYTE bAct = 1;
+			while (ReadFile(g_hPort, &chRead, 1, &dwRead, NULL))
+			{
+				// [ Read OP success ]
+
+				if (dwRead == 1)
+				{
+					// [ NOT EMPTY ]
+
+					gv_RxBuf[g_usRxIndex] = chRead;
+					g_usRxIndex++;
+
+					usRxRoundCount++;
+					//Trace(_T("."));
+
+					OutputLog(_T("%c"), chRead);
+				}
+				else
+				{
+					// [ EMPTY ]
+
+					// end operation
+					break;
+
+				}
+			}//while (bAct) 
+
+			// end string
+//			gv_RxBuf[ucByteIndex] = '\0';
+
+
+			//// output
+			//if (usRxRoundCount == 0)
+			//{
+			//	// [END PACKET]
+
+			//	OutputLog(_T("%s"), CString(gv_RxBuf));
+
+			//	char str_text[64];
+			//	sprintf(str_text, "%s", gv_RxBuf);
+
+			//	fputs(str_text, fs);
+
+			//	// reset Rx
+			//	gv_RxBuf[0] = '\0';
+			//	g_usRxIndex = 0;
+
+			//}
+			//else
+			//{
+			//	// [CONTINUE]
+
+			//}
+			
+		}
+		else
+		{
+			// [ Error in WaitCommEvent ]
+
+			break;
+		}
+
+	}//while (1) : Listen
+
+
+	// > Close COM Port
+	BYTE iResult2 = COMPort_Close(&g_hPort);
+
+	OutputLog(_T("\n\n\n End of program, Port closed.  \n\n"));
+
+	fclose(fs);
+
+	if (iResult2 != COM_PORT_OP_SUCCESS)
+	{
+		return iResult2;
+	}
+
+	return 0;
 }
 
 
@@ -215,7 +380,7 @@ void CVCPThreadDlg::Trace(LPCTSTR szFmt, ...)
 void CVCPThreadDlg::Thread_ListenComPort(void)
 {
 	// create new thread with no params
-	AfxBeginThread(Sample1, NULL);
+	AfxBeginThread(ListenRx_ComPort, NULL);
 }
 
 
@@ -270,180 +435,14 @@ BYTE CVCPThreadDlg::ConnectDevice()
 	return 0;
 }
 
-int CVCPThreadDlg::PortListen()
-{
-	/////////////////////////////////////////////////////////
-	// Test, we short the Rx with Tx.
-	/////////////////////////////////////////////////////////
-	DCB dcb;
-
-	UCHAR wrBuffer[USBUART_BUFFER_SIZE];
-	UCHAR rdBuffer[USBUART_BUFFER_SIZE];
-	DWORD dwWritten = 0;
-
-	memset(wrBuffer, 0, sizeof(wrBuffer));
-	memset(rdBuffer, 0, sizeof(rdBuffer));
-
-	for (int nCount = 0; nCount < sizeof(wrBuffer); nCount++)
-	{
-		wrBuffer[nCount] = nCount;
-	}
-
-
-	//   // Let us perform a simple write of 64 bytes of data.
-	//DWORD dwNumBytesWritten;
-	//iResult = COMPort_Write(&hPort, wrBuffer, &dwNumBytesWritten);
-
-	//if (iResult != COM_PORT_OP_SUCCESS)
-	//{
-	//	return iResult;
-	//}
-
-
-	//BOOL bWriteStatus;
-
-	//   // Let us read the data that we wrote.
-	//   DWORD dwRead = 0;
-	//   DWORD dwBytesRead = 0;
-	//   DWORD dwSizeLeftToRead = sizeof(rdBuffer);
-	//   BOOL bReadStatus = FALSE;
-	//   
-	//DWORD dwNumBytesRead;
-	//iResult = COMPort_Read(&hPort, rdBuffer, &dwNumBytesRead);
-
-	//if (iResult != COM_PORT_OP_SUCCESS)
-	//{
-	//	return iResult;
-	//}
-
-	//   
-	//   // Perform a comparison operation to make sure that we have data integrity.
-	//   if (memcmp(wrBuffer, rdBuffer, dwRead) != 0 )
-	//   {
-	//       _tprintf(L"\n\n\nREAD and WRITE data comparison failed.......\n\n");
-	//       CloseHandle(hPort);
-	//       return -3;
-	//   }
-
-	//   _tprintf(L"\n\n\nSuccessfully Completed Flow Control Enabled UART operation .......\n\n");
-
-
-
-	if (!SetCommMask(m_hPort, EV_RXCHAR))
-	{
-		// [ Error setting communications event mask ]
-
-		return -1;
-	}
-
-
-	// Test RX Listen example
-
-
-	// Set Values to Transfer - Get
-	for (BYTE kk = 0; kk < 8; kk++)
-	{
-		wrBuffer[kk] = 0x10 + kk;
-
-	}
-
-	// ** TRANSFER
-	//DWORD dwNumBytesWritten;
-	//BYTE iResult = 0;
-	//iResult = COMPort_Write8(&m_hPort, wrBuffer, &dwNumBytesWritten);
-
-	//if (iResult != COM_PORT_OP_SUCCESS)
-	//{
-	//	return iResult;
-	//}
-
-	// ** RECEIVE
-	DWORD dwCommEvent;
-	DWORD dwRead;
-	char  chRead;
-
-	WORD usReceiveCounter = 0;
-
-	while(1)
-	{
-
-		if (WaitCommEvent(m_hPort, &dwCommEvent, NULL))
-		{
-			// [ Read OP defined ]
-
-			BYTE ucByteIndex = 0;
-
-			BYTE bAct = 1;
-			while (bAct)
-			{
-				if (ReadFile(m_hPort, &chRead, 1, &dwRead, NULL))
-				{
-					// [ Read OP success ]
-
-					if (dwRead)
-					{
-						// [ NOT EMPTY ]
-
-						rdBuffer[ucByteIndex] = chRead;
-						ucByteIndex++;
-
-						//Trace(_T("."));
-					}
-					else
-					{
-						// [ EMPTY ]
-
-						// end operation
-						bAct = 0;
-					}
-				}
-				else
-				{
-					// [ An error occurred in the ReadFile call ]
-
-					break;
-				}
-
-			}//while (bAct) 
-
-			 // end string
-			rdBuffer[ucByteIndex] = '\0';
-
-			// output
-			Trace(_T("Receive %03d: %s \n"), usReceiveCounter, CString(rdBuffer));
-
-			usReceiveCounter++;
-
-		}
-		else
-		{
-			// [ Error in WaitCommEvent ]
-
-			break;
-		}
-
-	}//for (; ; )
-
-
-	 // > Close COM Port
-	BYTE iResult2 = COMPort_Close(&m_hPort);
-
-	Trace(_T("\n\n\n End of program, Port closed.  \n\n"));
-
-
-	if (iResult2 != COM_PORT_OP_SUCCESS)
-	{
-		return iResult2;
-	}
-
-
-	return 0;
-}
-
 
 void CVCPThreadDlg::OnBnClickedButtonConnect()
 {
+	// open ComPort
 	ConnectDevice();
+
+	// Listen ComPort continiously
+	Thread_ListenComPort();
 }
 
 

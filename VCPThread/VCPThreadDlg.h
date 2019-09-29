@@ -13,18 +13,24 @@
 ////////////////////////////////////////////////////////////////////////////////
 // globals
 ////////////////////////////////////////////////////////////////////////////////
+// ** support **
+// output
+void Trace_Custom(CEdit* pEdit, CString str);
+void OutputLog(LPCTSTR szFmt, ...);
 
+// ** ComPort **
 // ComPort handler
 static HANDLE g_hPort;
 
 // ComPort Rx_Buf
-static BYTE gv_RxBuf[256];
+static BYTE gv_RxBuf[USBUART_BUFFER_SIZE * 4];
+static WORD g_usRxIndex;
 
 // ComPort open Proc
 static BYTE Open_ComPort(BYTE dwComNum);
 
 // ComPort Rx_Listen Proc
-
+static UINT ListenRx_ComPort(LPVOID rawInput);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +73,6 @@ public:
 
 	// CDC
 	BYTE ConnectDevice();
-	int PortListen();
 	void Thread_ListenComPort(void);
 
 	// control settings
