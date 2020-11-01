@@ -63,7 +63,7 @@ BYTE Open_ComPort(BYTE dwComNum)
 	// > Open USBUART Device	
 	char szPort[COM_PORT_STRING_LEN];
 	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
-	int iResult = COMPort_Open(&g_hPort, dwComNum, 0);
+	int iResult = COMPort_Open(&g_hPort, dwComNum);
 
 	// check OP state
 	if (iResult != COM_PORT_OP_SUCCESS)

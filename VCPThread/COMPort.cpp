@@ -6,20 +6,40 @@
 // Half-Duplex realisation, Synchronous, non-Overlapped
 //
 
-////////////////////////////////////////////////////////////////////////////////
-// Include
-////////////////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
 #include "COMPort.h"
 
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 // Functions
-////////////////////////////////////////////////////////////////////////////////
-// NOTE:
-// 1 = Overlapped
-// 0 = non-overlapped
-BYTE COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
+/////////////////////////////////////////////////////////////////////////////
+// check ComPort state
+int COMPort_CheckStatus(hSerialCDC* hPort)
+{
+	// check ComPort pointer
+	if (hPort == NULL)
+	{
+		return COM_PORT_IS_EMPTY;
+	}
+	else
+	{
+		// check ComPort connection
+		DCB dcb;
+		if (GetCommState(*hPort, &dcb) == FALSE)
+		{
+			// [ERROR: PORT OP FAILURE]
+
+			return COM_PORT_BAD_CONNECT;
+		}
+		else
+		{
+			return COM_PORT_OP_SUCCESS;
+		}
+	}
+}
+
+
+int COMPort_Open(hSerialCDC * hPort, DWORD dwComNum)
 {
 	// > Open PORT
 	char szPort[COM_PORT_STRING_LEN];
@@ -51,19 +71,14 @@ BYTE COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
 	szPort[7 + ucDigitLen] = '\0';
 
 	// > Define Communication Regime
-	// This creates a synchronous handle or asynchronous handle.
-	*hPort = CreateFileA(
-		szPort, 
-		GENERIC_READ | GENERIC_WRITE, 
-		0, 
-		0, 
-		OPEN_EXISTING, 
-		fOverlapped ? FILE_FLAG_OVERLAPPED : 0,
-		NULL);
-
+	// This creates a synchronous handle. So that only a read or write can be performed
+	// for this at a particular point of time.
+	// For performing Read and Write operation together, please refer to OVERLAPPED COM
+	// PORT USAGE example.
+	*hPort = CreateFileA(szPort, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, NULL);
 	if (*hPort == INVALID_HANDLE_VALUE)
 	{
-		return COM_PORT_OP_MISMATCH;
+		return COM_PORT_BAD_CONNECT;
 	}
 
 
@@ -71,25 +86,8 @@ BYTE COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
 	// These Values will be over ridden during read/write API timeout.
 	COMMTIMEOUTS objTimeout;
 	GetCommTimeouts(*hPort, &objTimeout);
-
-	switch (fOverlapped)
-	{
-	case 0:		// blocking: DEFAULT_WRITE_TIMEOUT / DEFAULT_READ_TIMEOUT
-		objTimeout.WriteTotalTimeoutConstant = DEFAULT_WRITE_TIMEOUT;
-		objTimeout.ReadTotalTimeoutConstant = DEFAULT_READ_TIMEOUT;
-
-		break;
-
-	case 1:		// non-blocking: MAXDWORD
-		objTimeout.ReadIntervalTimeout = MAXDWORD;
-
-		break;
-
-
-	default:
-		//err case
-		break;
-	}
+	objTimeout.WriteTotalTimeoutConstant = DEFAULT_WRITE_TIMEOUT;
+	objTimeout.ReadTotalTimeoutConstant = DEFAULT_READ_TIMEOUT;
 
 	// Set up the time out value for ReadFile and WriteFile API.
 	SetCommTimeouts(*hPort, &objTimeout);
@@ -99,7 +97,7 @@ BYTE COMPort_Open(HANDLE * hPort, DWORD dwComNum, bool fOverlapped)
 }
 
 
-BYTE COMPort_SetConfig(HANDLE * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl)
+int COMPort_SetConfig(hSerialCDC * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl)
 {
 	// NOTE:
 	// NAMES:
@@ -154,10 +152,14 @@ BYTE COMPort_SetConfig(HANDLE * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR
 }
 
 
-int COMPort_Read(HANDLE * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead)
+int COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead)
 {
-	// TODO:
-	// check COM_Handler for NULL
+	// check ComPort_Handler
+	BYTE ucComPortStatus = COMPort_CheckStatus(hPort);
+	if (ucComPortStatus != COM_PORT_OP_SUCCESS)
+	{
+		return ucComPortStatus;
+	}
 
 	BYTE errNumber = 0;
 	DWORD dwNumBytesRead_Cyc;
@@ -212,13 +214,16 @@ int COMPort_Read(HANDLE * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead)
 }
 
 
-int COMPort_Write(HANDLE * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritten)
+int COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritten)
 {
-	// TODO:
-	// check COM_Handler for NULL
+	// check ComPort_Handler
+	BYTE ucComPortStatus = COMPort_CheckStatus(hPort);
+	if (ucComPortStatus != COM_PORT_OP_SUCCESS)
+	{
+		return ucComPortStatus;
+	}
 
 	*dwNumBytesWritten = 0;
-
 	BOOL bWriteStatus = WriteFile(*hPort, v_WriteBuffer, USBUART_BUFFER_SIZE, dwNumBytesWritten, NULL);
 
 	// > Check Valid PROC
@@ -255,51 +260,7 @@ int COMPort_Write(HANDLE * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritt
 }
 
 
-int COMPort_Write8(HANDLE * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritten)
-{
-	// TODO:
-	// check COM_Handler for NULL
-	const BYTE const_ucWriteCount = 8;
-
-	*dwNumBytesWritten = 0;
-
-	BOOL bWriteStatus = WriteFile(*hPort, v_WriteBuffer, const_ucWriteCount, dwNumBytesWritten, NULL);
-
-	// > Check Valid PROC
-	BYTE errNumber = 0;
-	if (bWriteStatus == FALSE)
-	{
-		// [ERROR: PORT OP FAILURE]
-
-		*dwNumBytesWritten = GetLastError();
-
-		errNumber = COM_PORT_OP_FAILURE;
-	}
-	else
-	{
-		if (*dwNumBytesWritten != const_ucWriteCount)
-		{
-			// [ERROR: TRANSFER MISMATCH]
-
-			errNumber = COM_PORT_OP_MISMATCH;
-		}
-	}
-
-	if (errNumber != 0)
-	{
-		// [ERROR CASE]
-
-		CloseHandle(*hPort);
-
-		return errNumber;
-	}
-
-
-	return COM_PORT_OP_SUCCESS;
-}
-
-
-int COMPort_Close(HANDLE * hPort)
+int COMPort_Close(hSerialCDC * hPort)
 {
 	// TODO:
 	// check COM_Handler for NULL
@@ -315,3 +276,5 @@ int COMPort_Close(HANDLE * hPort)
 
 	return COM_PORT_OP_SUCCESS;
 }
+
+
