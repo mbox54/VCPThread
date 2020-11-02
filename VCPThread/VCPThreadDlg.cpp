@@ -281,7 +281,7 @@ VCPThread_OpStatus_t CVCPThreadDlg::ConnectDevice()
 	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
 
 	// > Open USBUART Device	 
-	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open(dwComNum);
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open_SyncMode(dwComNum);
 	
 	if (TResult != WINCOMPORT_OP_SUCCESS)
 	{
@@ -324,7 +324,7 @@ void CVCPThreadDlg::OnBnClickedButtonListerEn()
 
 void CVCPThreadDlg::OnBnClickedButtonListerDis()
 {
-	WINCOMPORT_ListenStop();
+	WINCOMPORT_ListenCancel();
 }
 
 
@@ -336,7 +336,64 @@ void CVCPThreadDlg::OnBnClickedButtonRxGetStatus()
 
 void CVCPThreadDlg::OnBnClickedButtonTxSend()
 {
-	// TODO: Add your control notification handler code here
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious();
+
+	CString str;
+	switch (TResult)
+	{
+	case WINCOMPORT_UNKNOWN:
+
+		str.Append(_T("WINCOMPORT_UNKNOWN"));
+
+		break;
+
+
+	case WINCOMPORT_PORT_IS_EMPTY:
+
+		str.Append(_T("WINCOMPORT_PORT_IS_EMPTY"));
+
+		break;
+
+
+	case WINCOMPORT_BAD_CONNECT:
+
+		str.Append(_T("WINCOMPORT_BAD_CONNECT"));
+
+		break;
+
+
+	case WINCOMPORT_OP_SUCCESS:
+
+		str.Append(_T("WINCOMPORT_OP_SUCCESS"));
+
+		break;
+
+
+	case WINCOMPORT_OP_FAILURE:
+
+		str.Append(_T("WINCOMPORT_OP_FAILURE"));
+
+		break;
+
+
+	case WINCOMPORT_ABORT_PARAM_MISMATCH:
+
+		str.Append(_T("WINCOMPORT_ABORT_PARAM_MISMATCH"));
+
+		break;
+
+
+	case WINCOMPORT_ERR_WRITTEN_MISMATCH:
+
+		str.Append(_T("WINCOMPORT_ERR_WRITTEN_MISMATCH"));
+
+		break;
+
+
+	default:
+
+		break;
+	}
 }
 
 

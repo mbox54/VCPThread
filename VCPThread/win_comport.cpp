@@ -25,7 +25,7 @@
 // Properties
 ////////////////////////////////////////////////////////////
 // ComPort handler
-HANDLE m_hPort;
+hSerialCDC* m_hPort;
 
 // ComPort Rx_Buf
 struct PortListenProcess_t
@@ -40,7 +40,7 @@ struct PortListenProcess_t
 
 
 
-WinComPort_ReturnCodes_t WINCOMPORT_Init(BYTE dwComNum)
+WinComPort_ReturnCodes_t WINCOMPORT_Init(void)
 {
 	// init common
 
@@ -51,12 +51,12 @@ WinComPort_ReturnCodes_t WINCOMPORT_Init(BYTE dwComNum)
 }
 
 // Open
-WinComPort_ReturnCodes_t WINCOMPORT_Open(BYTE dwComNum)
+WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum)
 {
 	// > Open USBUART Device	
 	char szPort[COM_PORT_STRING_LEN];
 	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
-	int iResult = COMPort_Open(&m_hPort, dwComNum);
+	int iResult = COMPort_Open(m_hPort, dwComNum);
 
 	WinComPort_ReturnCodes_t TResult = WINCOMPORT_UNKNOWN;
 	// check OP state
@@ -83,7 +83,7 @@ WinComPort_ReturnCodes_t WINCOMPORT_Open(BYTE dwComNum)
 
 	// > Set COM Port Config
 	//iResult = COMPort_SetConfig(&m_hPort, UART_3M_BAUDRATE, 8, ONESTOPBIT, ONESTOPBIT, 1, 0);
-	iResult = COMPort_SetConfig(&m_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
+	iResult = COMPort_SetConfig(m_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
 
 	// check OP state
 	if (iResult != COM_PORT_OP_SUCCESS)
@@ -111,10 +111,10 @@ WinComPort_ReturnCodes_t WINCOMPORT_Open(BYTE dwComNum)
 }
 
 // Close
-WinComPort_ReturnCodes_t WINCOMPORT_Close(BYTE dwComNum)
+WinComPort_ReturnCodes_t WINCOMPORT_Close(void)
 {
 	// > Close COM Port
-	BYTE ucResult = COMPort_Close(&m_hPort);
+	BYTE ucResult = COMPort_Close(m_hPort);
 
 //	fclose(fs);
 
@@ -145,7 +145,49 @@ WinComPort_ReturnCodes_t WINCOMPORT_Close(BYTE dwComNum)
 	return TResult;
 }
 
+// TODO
+WinComPort_ReturnCodes_t WINCOMPORT_Read_Instantenious(BYTE* aData, WORD wCount)
+{
+	return WinComPort_ReturnCodes_t();
+}
 
+
+WinComPort_ReturnCodes_t WINCOMPORT_Write_Instantenious(BYTE* aData, WORD wCount)
+{
+	DWORD dwCountWritten = 0;
+	BYTE ucResult = COMPort_Write(m_hPort, aData, wCount, &dwCountWritten);
+
+	// check result
+	if (ucResult != COM_PORT_OP_SUCCESS)
+	{
+		// [FAILURE]
+
+		switch (ucResult)
+		{
+		case COM_PORT_OP_FAILURE:
+			// set return code
+			return WINCOMPORT_OP_FAILURE;
+
+			break;
+
+		case COM_PORT_OP_MISMATCH:
+			// set return code
+			return WINCOMPORT_ERR_WRITTEN_MISMATCH;
+
+			break;
+
+
+		default:
+			break;
+		}
+	}
+
+	return WINCOMPORT_OP_SUCCESS;
+}
+
+// -----
+// ** COMPLEX FUNCTIONS ** 
+// -----
 UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 {
 	// * init process *
@@ -167,7 +209,7 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 	
 
 	// config ComPort Rx mode
-	if (!SetCommMask(m_hPort, EV_RXCHAR))
+	if (!SetCommMask(*m_hPort, EV_RXCHAR))
 	{
 		// [ Error setting communications event mask ]
 
@@ -184,7 +226,7 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 	while (m_TPortListenProcess.bEnable)
 	{
 		// check for Rx
-		if (WaitCommEvent(m_hPort, &dwCommEvent, NULL))
+		if (WaitCommEvent(*m_hPort, &dwCommEvent, NULL))
 		{
 			// [RX OCCURED]
 
@@ -192,7 +234,7 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 			m_TPortListenProcess.TState = LISTEN_STATES_RECEIVING;
 
 			// get all Rx data
-			while (ReadFile(m_hPort, &chRead, 1, &dwRead, NULL))
+			while (ReadFile(*m_hPort, &chRead, 1, &dwRead, NULL))
 			{
 				// [Read OP success]
 
@@ -243,7 +285,7 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 }
 
 // stop process
-void WINCOMPORT_ListenStop(void)
+void WINCOMPORT_ListenCancel(void)
 {
 	m_TPortListenProcess.bEnable = TRUE;
 }

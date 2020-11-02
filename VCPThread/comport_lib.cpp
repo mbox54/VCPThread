@@ -17,7 +17,7 @@
 // Functions
 ///////////////////////////////////////////////////////////
 // check ComPort state
-int COMPort_CheckStatus(hSerialCDC* hPort)
+BYTE COMPort_CheckStatus(hSerialCDC* hPort)
 {
 	// check ComPort pointer
 	if (hPort == NULL)
@@ -42,7 +42,7 @@ int COMPort_CheckStatus(hSerialCDC* hPort)
 }
 
 
-int COMPort_Open(hSerialCDC * hPort, DWORD dwComNum)
+BYTE COMPort_Open(hSerialCDC * hPort, DWORD dwComNum)
 {
 	// > Open PORT
 	char szPort[COM_PORT_STRING_LEN];
@@ -100,7 +100,7 @@ int COMPort_Open(hSerialCDC * hPort, DWORD dwComNum)
 }
 
 
-int COMPort_SetConfig(hSerialCDC * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl)
+BYTE COMPort_SetConfig(hSerialCDC * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl)
 {
 	// NOTE:
 	// NAMES:
@@ -155,7 +155,7 @@ int COMPort_SetConfig(hSerialCDC * hPort, DWORD dwBaudRate, UCHAR ucByteSize, UC
 }
 
 
-int COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead)
+BYTE COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead)
 {
 	// check ComPort_Handler
 	BYTE ucComPortStatus = COMPort_CheckStatus(hPort);
@@ -217,7 +217,7 @@ int COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRea
 }
 
 
-int COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesWritten)
+BYTE COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, WORD wCount, DWORD * dwNumBytesWritten)
 {
 	// check ComPort_Handler
 	BYTE ucComPortStatus = COMPort_CheckStatus(hPort);
@@ -227,7 +227,7 @@ int COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesW
 	}
 
 	*dwNumBytesWritten = 0;
-	BOOL bWriteStatus = WriteFile(*hPort, v_WriteBuffer, USBUART_BUFFER_SIZE, dwNumBytesWritten, NULL);
+	BOOL bWriteStatus = WriteFile(*hPort, v_WriteBuffer, wCount, dwNumBytesWritten, NULL);
 
 	// > Check Valid PROC
 	BYTE errNumber = 0;
@@ -241,7 +241,7 @@ int COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesW
 	}
 	else
 	{
-		if (*dwNumBytesWritten != USBUART_BUFFER_SIZE)
+		if (*dwNumBytesWritten != wCount)
 		{
 			// [ERROR: TRANSFER MISMATCH]
 
@@ -263,7 +263,7 @@ int COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, DWORD * dwNumBytesW
 }
 
 
-int COMPort_Close(hSerialCDC * hPort)
+BYTE COMPort_Close(hSerialCDC * hPort)
 {
 	// TODO:
 	// check COM_Handler for NULL
