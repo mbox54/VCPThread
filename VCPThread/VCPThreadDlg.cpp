@@ -1,6 +1,9 @@
 // VCPThreadDlg.cpp : implementation file
 //
 
+///////////////////////////////////////////////////////////
+// Includes
+///////////////////////////////////////////////////////////
 #include "stdafx.h"
 #include "VCPThread.h"
 #include "VCPThreadDlg.h"
@@ -55,150 +58,6 @@ void OutputLog(LPCTSTR szFmt, ...)
 		// output to control
 		Trace_Custom(pEdit, str);
 	}
-}
-
-// ComPort
-BYTE Open_ComPort(BYTE dwComNum)
-{
-	// > Open USBUART Device	
-	char szPort[COM_PORT_STRING_LEN];
-	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
-	int iResult = COMPort_Open(&g_hPort, dwComNum);
-
-	// check OP state
-	if (iResult != COM_PORT_OP_SUCCESS)
-	{
-		// [FAILED]
-
-		// abort
-		return iResult;
-	}
-
-	// > Set COM Port Config
-	//iResult = COMPort_SetConfig(&m_hPort, UART_3M_BAUDRATE, 8, ONESTOPBIT, ONESTOPBIT, 1, 0);
-	iResult = COMPort_SetConfig(&g_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
-
-	return iResult;
-}
-
-
-/////////////////////////////////////////////////////////
-// Test, we short the Rx with Tx.
-/////////////////////////////////////////////////////////
-UINT ListenRx_ComPort(LPVOID rawInput)
-{
-	// > Open File (config)
-	// default name
-	char* file_name = "rx_log.txt";
-
-	// try open
-	FILE* fs = fopen(file_name, "w");
-
-
-	// reset buffer
-	memset(gv_RxBuf, 0, sizeof(USBUART_BUFFER_SIZE));
-
-	// config ComPort Rx mode
-	if (!SetCommMask(g_hPort, EV_RXCHAR))
-//	if (!SetCommMask(g_hPort, EV_RXFLAG))
-	{
-		// [ Error setting communications event mask ]
-
-		return COM_PORT_OP_FAILURE;
-	}
-
-
-	// ** RECEIVE
-	DWORD dwCommEvent;
-	DWORD dwRead;
-	char  chRead;
-
-	WORD usReceiveCounter = 0;
-	while (1)
-	{
-		if (WaitCommEvent(g_hPort, &dwCommEvent, NULL))
-		{
-			// [ Read OP defined ]
-
-			WORD usRxRoundCount = 0;
-			BYTE bAct = 1;
-			while (ReadFile(g_hPort, &chRead, 1, &dwRead, NULL))
-			{
-				// [ Read OP success ]
-
-				if (dwRead == 1)
-				{
-					// [ NOT EMPTY ]
-
-					gv_RxBuf[g_usRxIndex] = chRead;
-					g_usRxIndex++;
-
-					usRxRoundCount++;
-					//Trace(_T("."));
-
-					OutputLog(_T("%c"), chRead);
-				}
-				else
-				{
-					// [ EMPTY ]
-
-					// end operation
-					break;
-
-				}
-			}//while (bAct) 
-
-			// end string
-//			gv_RxBuf[ucByteIndex] = '\0';
-
-
-			//// output
-			//if (usRxRoundCount == 0)
-			//{
-			//	// [END PACKET]
-
-			//	OutputLog(_T("%s"), CString(gv_RxBuf));
-
-			//	char str_text[64];
-			//	sprintf(str_text, "%s", gv_RxBuf);
-
-			//	fputs(str_text, fs);
-
-			//	// reset Rx
-			//	gv_RxBuf[0] = '\0';
-			//	g_usRxIndex = 0;
-
-			//}
-			//else
-			//{
-			//	// [CONTINUE]
-
-			//}
-			
-		}
-		else
-		{
-			// [ Error in WaitCommEvent ]
-
-			break;
-		}
-
-	}//while (1) : Listen
-
-
-	// > Close COM Port
-	BYTE iResult2 = COMPort_Close(&g_hPort);
-
-	OutputLog(_T("\n\n\n End of program, Port closed.  \n\n"));
-
-	fclose(fs);
-
-	if (iResult2 != COM_PORT_OP_SUCCESS)
-	{
-		return iResult2;
-	}
-
-	return 0;
 }
 
 
@@ -262,6 +121,11 @@ BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON_CONNECT, &CVCPThreadDlg::OnBnClickedButtonConnect)
 	ON_BN_CLICKED(IDC_BUTTON_CLEARLOG, &CVCPThreadDlg::OnBnClickedButtonClearlog)
+	ON_BN_CLICKED(IDC_BUTTON_LISTER_EN, &CVCPThreadDlg::OnBnClickedButtonListerEn)
+	ON_BN_CLICKED(IDC_BUTTON_LISTER_DIS, &CVCPThreadDlg::OnBnClickedButtonListerDis)
+	ON_BN_CLICKED(IDC_BUTTON_RX_GET_STATUS, &CVCPThreadDlg::OnBnClickedButtonRxGetStatus)
+	ON_BN_CLICKED(IDC_BUTTON_TX_SEND, &CVCPThreadDlg::OnBnClickedButtonTxSend)
+	ON_BN_CLICKED(IDC_BUTTON_TX_GET_STATUS, &CVCPThreadDlg::OnBnClickedButtonTxGetStatus)
 END_MESSAGE_MAP()
 
 
@@ -380,7 +244,7 @@ void CVCPThreadDlg::Trace(LPCTSTR szFmt, ...)
 void CVCPThreadDlg::Thread_ListenComPort(void)
 {
 	// create new thread with no params
-	AfxBeginThread(ListenRx_ComPort, NULL);
+	AfxBeginThread(WINCOMPORT_ListenStart, NULL);
 }
 
 
@@ -407,7 +271,7 @@ int CVCPThreadDlg::InitProg()
 }
 
 
-BYTE CVCPThreadDlg::ConnectDevice()
+VCPThread_OpStatus_t CVCPThreadDlg::ConnectDevice()
 {
 	UpdateData(TRUE);
 	DWORD dwComNum = (DWORD)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
@@ -416,14 +280,14 @@ BYTE CVCPThreadDlg::ConnectDevice()
 	// Input Conf Parameter
 	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
 
-	// > Open USBUART Device
-	BYTE ucResult = Open_ComPort(dwComNum);
+	// > Open USBUART Device	 
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open(dwComNum);
 	
-	if (ucResult != COM_PORT_OP_SUCCESS)
+	if (TResult != WINCOMPORT_OP_SUCCESS)
 	{
 		Trace(_T("Open failed! \n"));
 
-		return ucResult;
+		return VCPThread_FAILURE;
 	}
 
 	// Output control State
@@ -432,7 +296,7 @@ BYTE CVCPThreadDlg::ConnectDevice()
 	// Start Listen Port
 	//PortListen();
 
-	return 0;
+	return VCPThread_SUCCESS;
 }
 
 
@@ -440,9 +304,6 @@ void CVCPThreadDlg::OnBnClickedButtonConnect()
 {
 	// open ComPort
 	ConnectDevice();
-
-	// Listen ComPort continiously
-	Thread_ListenComPort();
 }
 
 
@@ -452,3 +313,34 @@ void CVCPThreadDlg::OnBnClickedButtonClearlog()
 }
 
 
+
+
+void CVCPThreadDlg::OnBnClickedButtonListerEn()
+{
+	// Listen ComPort continiously
+	Thread_ListenComPort();
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonListerDis()
+{
+	WINCOMPORT_ListenStop();
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonRxGetStatus()
+{
+	// TODO: Add your control notification handler code here
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonTxSend()
+{
+	// TODO: Add your control notification handler code here
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonTxGetStatus()
+{
+	// TODO: Add your control notification handler code here
+}

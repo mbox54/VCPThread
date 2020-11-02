@@ -187,21 +187,22 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="COMPort.h" />
+    <ClInclude Include="comport_lib.h" />
     <ClInclude Include="KeyEdit.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="VCPThread.h" />
     <ClInclude Include="VCPThreadDlg.h" />
+    <ClInclude Include="win_comport.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="COMPort.cpp" />
-    <ClCompile Include="COMPort_overlap.cpp" />
+    <ClCompile Include="comport_lib.cpp" />
     <ClCompile Include="KeyEdit.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="VCPThread.cpp" />
     <ClCompile Include="VCPThreadDlg.cpp" />
+    <ClCompile Include="win_comport.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="VCPThread.rc" />
