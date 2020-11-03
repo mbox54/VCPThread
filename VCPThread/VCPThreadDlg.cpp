@@ -12,6 +12,10 @@
 #define new DEBUG_NEW
 #endif
 
+// !debug
+BYTE aData[20] = {0, 1, 2, 16, 255};
+char cTest[128];
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Module functions
@@ -126,6 +130,8 @@ BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_RX_GET_STATUS, &CVCPThreadDlg::OnBnClickedButtonRxGetStatus)
 	ON_BN_CLICKED(IDC_BUTTON_TX_SEND, &CVCPThreadDlg::OnBnClickedButtonTxSend)
 	ON_BN_CLICKED(IDC_BUTTON_TX_GET_STATUS, &CVCPThreadDlg::OnBnClickedButtonTxGetStatus)
+	ON_BN_CLICKED(IDC_BUTTON_MODBUS_SEND, &CVCPThreadDlg::OnBnClickedButtonModbusSend)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -248,96 +254,21 @@ void CVCPThreadDlg::Thread_ListenComPort(void)
 }
 
 
-void CVCPThreadDlg::ExecuteCommand()
+void CVCPThreadDlg::Thread_TransmitComPort(void)
 {
-	// Update command text
-	m_EditCommand.GetWindowText(m_strCommand);
-
-	// output in log
-	Trace(_T("%s\n"), m_strCommand);
+	// create new thread with no params
+	AfxBeginThread(WINCOMPORT_Transmit, NULL);
 }
 
 
-int CVCPThreadDlg::InitProg()
+void CVCPThreadDlg::Thread_ModbusSend(void)
 {
-	// Printout in the basic command line window.
-	Trace(_T("Cypress Basic UART Communication Test\n\n"));
 
-	// Output control State
-	Trace(_T("Enter Master COM Port (1-99): \n"));
-
-
-	return 0;
 }
 
 
-VCPThread_OpStatus_t CVCPThreadDlg::ConnectDevice()
+void CVCPThreadDlg::PrintResult(WinComPort_ReturnCodes_t TResult)
 {
-	UpdateData(TRUE);
-	DWORD dwComNum = (DWORD)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
-
-	// > Connect to USBUART Device
-	// Input Conf Parameter
-	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
-
-	// > Open USBUART Device	 
-	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open_SyncMode(dwComNum);
-	
-	if (TResult != WINCOMPORT_OP_SUCCESS)
-	{
-		Trace(_T("Open failed! \n"));
-
-		return VCPThread_FAILURE;
-	}
-
-	// Output control State
-	Trace(_T("Open ...[OK] \n"));
-
-	// Start Listen Port
-	//PortListen();
-
-	return VCPThread_SUCCESS;
-}
-
-
-void CVCPThreadDlg::OnBnClickedButtonConnect()
-{
-	// open ComPort
-	ConnectDevice();
-}
-
-
-void CVCPThreadDlg::OnBnClickedButtonClearlog()
-{
-	m_EditOutput.SetWindowText(_T(""));
-}
-
-
-
-
-void CVCPThreadDlg::OnBnClickedButtonListerEn()
-{
-	// Listen ComPort continiously
-	Thread_ListenComPort();
-}
-
-
-void CVCPThreadDlg::OnBnClickedButtonListerDis()
-{
-	WINCOMPORT_ListenCancel();
-}
-
-
-void CVCPThreadDlg::OnBnClickedButtonRxGetStatus()
-{
-	// TODO: Add your control notification handler code here
-}
-
-
-void CVCPThreadDlg::OnBnClickedButtonTxSend()
-{
-	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious();
-
 	CString str;
 	switch (TResult)
 	{
@@ -394,10 +325,220 @@ void CVCPThreadDlg::OnBnClickedButtonTxSend()
 
 		break;
 	}
+
+	str.Append(_T("/n"));
+
+	Trace(str);
+}
+
+
+void CVCPThreadDlg::GetDataFromStrHex(char* strInput, BYTE* aDataOutput)
+{
+	/** FORMAT:
+	 * strInput = "XX XX XX"
+	 * aDataOutput = {n, n, n} 
+	 * 
+	 * ALGORITHM:
+	 * if Length >= 2, then copy first 2 symbols as First Hex,
+	 * and then if space delimeter exists proceed next symbol.
+	 * 
+	 * NOTE:
+	 * only symbols with 2 digits presents, only space delimeter can be.
+	 * 
+	 * ALGORITHM2:
+	 * in str: "XX XX XX":
+	 * first "XX" - unique,
+	 * next " XX" - repeated.
+	 * So simple while() can be implemented based on this pattern.
+	 */ 
+
+	// get length
+	WORD wInputLength = strlen(strInput);	
+
+	// check at least 1 value exists
+	if (wInputLength < 2)
+	{
+		// [NO VALUES]
+
+		return;
+	}
+
+	char cStrBuf[2];
+	WORD wSymbolIndex = 0;
+
+	// get substr_hex_byte
+	strncpy(cStrBuf, strInput, 2);
+
+	// convert in value
+	aDataOutput[wSymbolIndex] = (BYTE)strtoul(cStrBuf, NULL, 16);
+	wSymbolIndex++;
+
+	// decomposing
+	while ((wSymbolIndex * 3 < wInputLength) && (strInput[wSymbolIndex * 3 - 1] == ' '))
+	{
+		// [MODE 0]
+
+		// get substr_hex_byte
+		strncpy(cStrBuf, strInput + wSymbolIndex * 3, 2);
+
+		// convert in value
+		aDataOutput[wSymbolIndex] = (BYTE)strtoul(cStrBuf, NULL, 16);
+		wSymbolIndex++;
+	}
+}
+
+
+void CVCPThreadDlg::GetStrHexFromData(BYTE* aDataInput, char* strOutput, WORD wCount)
+{
+	// check at least 1 value exists
+	if (wCount < 1)
+	{
+		return;
+	}
+
+	// copy first symbol: "XX"
+	char cStrBuf[4];
+	sprintf(cStrBuf, "%02X", aDataInput[0]);
+	strncpy(strOutput, cStrBuf, 2);
+
+	// copy next symbols " XX"
+	for (WORD wSymbolIndex = 1; wSymbolIndex < wCount; wSymbolIndex++)
+	{
+		sprintf(cStrBuf, " %02X", aDataInput[wSymbolIndex]);
+		strncpy(strOutput + wSymbolIndex * 3 - 1, cStrBuf, 3);
+	}
+}
+
+
+void CVCPThreadDlg::ExecuteCommand()
+{
+	// Update command text
+	m_EditCommand.GetWindowText(m_strCommand);
+
+	// output in log
+	Trace(_T("%s\n"), m_strCommand);
+}
+
+
+int CVCPThreadDlg::InitProg()
+{
+	// Printout in the basic command line window.
+	Trace(_T("Elcub(c) 2020\n\n"));
+
+	// Output control State
+	Trace(_T("Connect to device to start. \n"));
+
+
+	return 0;
+}
+
+
+VCPThread_OpStatus_t CVCPThreadDlg::ConnectDevice()
+{
+	UpdateData(TRUE);
+	DWORD dwComNum = (DWORD)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
+
+	// > Connect to USBUART Device
+	// Input Conf Parameter
+	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
+
+	// > Open USBUART Device	 
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open_SyncMode(dwComNum);
+	
+	if (TResult != WINCOMPORT_OP_SUCCESS)
+	{
+		Trace(_T("Open failed! \n"));
+
+		return VCPThread_FAILURE;
+	}
+
+	// Output control State
+	Trace(_T("Open ...[OK] \n"));
+
+	// Start Listen Port
+	//PortListen();
+
+	return VCPThread_SUCCESS;
+}
+
+
+void CVCPThreadDlg::StartTimer(void)
+{
+	m_nTimer = SetTimer(TIMER1, 15, NULL);
+}
+
+
+void CVCPThreadDlg::StopTimer(void)
+{
+	KillTimer(m_nTimer);
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonConnect()
+{
+	// open ComPort
+	ConnectDevice();
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonClearlog()
+{
+	m_EditOutput.SetWindowText(_T(""));
+}
+
+
+
+
+void CVCPThreadDlg::OnBnClickedButtonListerEn()
+{
+	// Listen ComPort continiously
+	Thread_ListenComPort();
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonListerDis()
+{
+	WINCOMPORT_ListenCancel();
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonRxGetStatus()
+{
+	// TODO: Add your control notification handler code here
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonTxSend()
+{
+	m_EditCommand.GetWindowText(m_strCommand);
+
+	char TxBuf[256];
+
+	//sprintf(TxBuf, (LPCSTR)(LPCWSTR)m_strCommand, "%s");
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious((BYTE*)(LPCSTR)(LPCWSTR)m_strCommand, m_strCommand.GetLength());
+
+	PrintResult(TResult);
 }
 
 
 void CVCPThreadDlg::OnBnClickedButtonTxGetStatus()
 {
-	// TODO: Add your control notification handler code here
+	//char* strTest = "00 01 02 03 10 A0 A2 FF";
+	
+	//GetDataFromStrHex(strTest, aData);
+
+	GetStrHexFromData(aData, cTest, 5);
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonModbusSend()
+{
+
+
+}
+
+
+void CVCPThreadDlg::OnTimer(UINT_PTR nIDEvent)
+{	
+	CDialog::OnTimer(nIDEvent);
 }

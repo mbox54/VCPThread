@@ -17,8 +17,8 @@
   * INFO:
   * - sync mode
   * - interrupted Read procedure with stand-along thread
-  * 2018
-  * /VPK
+  * Virtual COM-Port listen and command (160719 rev.1)  /VPK 
+  * 
   * 
   * ver. 1.0 - init version
   * INFO:
@@ -67,6 +67,27 @@ typedef enum
 } WinComPort_ListenStates;
 
 
+typedef enum
+{
+	TRANSMIT_STATES_UNKNOWN,
+	TRANSMIT_STATES_INIT,
+	TRANSMIT_STATES_TRANSMISSION,
+	TRANSMIT_STATES_COMPLETED,
+	TRANSMIT_STATES_EXIT_ERROR,
+	
+} WinComPort_TransmitStates;
+
+
+typedef enum
+{
+	MODBUS_INIT,
+	MODBUS_TRANSMISSION,
+	MODBUS_LISTENING,
+	MODBUS_COMPLETE,
+	MODBUS_TIMEOUT
+} WinComPort_ModbusProcess;
+
+
 ///////////////////////////////////////////////////////////
 // Function prototypes
 ///////////////////////////////////////////////////////////
@@ -94,6 +115,12 @@ void WINCOMPORT_ListenCancel(void);
 WinComPort_ListenStates WINCOMPORT_GetListenState(void);
 WORD WINCOMPORT_GetRxCount(void);
 void WINCOMPORT_GetRxData(BYTE * aRxData, WORD wCount);
+
+// * Tx OP: Thread header * /UINT Funct(LPVOID par);
+UINT WINCOMPORT_Transmit(LPVOID rawInput);
+
+// *Modbus transaction * /UINT Funct(LPVOID par);
+UINT WINCOMPORT_ModbusTransaction(LPVOID rawInput);
 
 
 

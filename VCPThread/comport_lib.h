@@ -25,10 +25,10 @@
 #define DEFAULT_WRITE_TIMEOUT           2000
 #define DEFAULT_READ_TIMEOUT            2000
 
-#define DEFAULT_UART_BAUDRATE           500000 //(500K Bauds).
+#define DEFAULT_UART_BAUDRATE           115200 //(500K Bauds).
 #define UART_3M_BAUDRATE                3000000 // 3 MBbps
 
-#define USBUART_BUFFER_SIZE				64	//!!!!! need to edit
+#define USBUART_BUFFER_SIZE				256	// modbus_rtu edition
 
 
 #define COM_PORT_OP_SUCCESS				0x00

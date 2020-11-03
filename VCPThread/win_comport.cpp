@@ -32,14 +32,33 @@ struct PortListenProcess_t
 {
 	BYTE bEnable;
 	WinComPort_ListenStates TState;
-	BYTE aRxBuf[USBUART_BUFFER_SIZE * 4];
+	BYTE aBuf[USBUART_BUFFER_SIZE * 4];
 	WORD wRxIndex;
 
 } m_TPortListenProcess;
 
 
+struct PortTransmitOp_t
+{
+	WinComPort_TransmitStates TState;
+	BYTE aBuf[USBUART_BUFFER_SIZE * 4];
+	WORD wCount;
+
+} m_TPortTransmitProcess;
 
 
+struct PortModbusTransaction_t
+{
+	WinComPort_ModbusProcess TState;
+	UINT64 u64OperationTime;
+
+} m_TPortModbusTransaction;
+
+
+
+//////////////////////////////////////////////////////////// 
+// Functions
+////////////////////////////////////////////////////////////
 WinComPort_ReturnCodes_t WINCOMPORT_Init(void)
 {
 	// init common
@@ -154,6 +173,8 @@ WinComPort_ReturnCodes_t WINCOMPORT_Read_Instantenious(BYTE* aData, WORD wCount)
 
 WinComPort_ReturnCodes_t WINCOMPORT_Write_Instantenious(BYTE* aData, WORD wCount)
 {
+	m_TPortTransmitProcess.TState = TRANSMIT_STATES_TRANSMISSION;
+
 	DWORD dwCountWritten = 0;
 	BYTE ucResult = COMPort_Write(m_hPort, aData, wCount, &dwCountWritten);
 
@@ -161,6 +182,9 @@ WinComPort_ReturnCodes_t WINCOMPORT_Write_Instantenious(BYTE* aData, WORD wCount
 	if (ucResult != COM_PORT_OP_SUCCESS)
 	{
 		// [FAILURE]
+
+		// set state
+		m_TPortTransmitProcess.TState = TRANSMIT_STATES_EXIT_ERROR;
 
 		switch (ucResult)
 		{
@@ -182,6 +206,9 @@ WinComPort_ReturnCodes_t WINCOMPORT_Write_Instantenious(BYTE* aData, WORD wCount
 		}
 	}
 
+	// set state
+	m_TPortTransmitProcess.TState = TRANSMIT_STATES_COMPLETED;
+
 	return WINCOMPORT_OP_SUCCESS;
 }
 
@@ -196,7 +223,7 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 	m_TPortListenProcess.TState = LISTEN_STATES_LISTENING;
 
 	// reset buffer
-	memset(m_TPortListenProcess.aRxBuf, 0x00, sizeof(USBUART_BUFFER_SIZE));
+	memset(m_TPortListenProcess.aBuf, 0x00, sizeof(USBUART_BUFFER_SIZE));
 
 	// > Open File (config)
 	// default name
@@ -243,7 +270,7 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 				{
 					// [ NOT EMPTY ]
 
-					m_TPortListenProcess.aRxBuf[m_TPortListenProcess.wRxIndex] = chRead;
+					m_TPortListenProcess.aBuf[m_TPortListenProcess.wRxIndex] = chRead;
 					m_TPortListenProcess.wRxIndex++;
 				}
 				else
@@ -284,6 +311,65 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 	return WINCOMPORT_OP_SUCCESS;
 }
 
+
+UINT WINCOMPORT_Transmit(LPVOID rawInput)
+{
+	// set state
+	m_TPortTransmitProcess.TState = TRANSMIT_STATES_INIT;
+
+	// reset struc
+	memset (m_TPortTransmitProcess.aBuf, 0x00, USBUART_BUFFER_SIZE);
+
+	// proc
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious(m_TPortTransmitProcess.aBuf, m_TPortTransmitProcess.wCount);
+
+	return 0;
+}
+
+UINT WINCOMPORT_ModbusTransaction(LPVOID rawInput)
+{
+	// init process
+	m_TPortModbusTransaction.TState = MODBUS_INIT;
+	m_TPortModbusTransaction.u64OperationTime = GetTickCount64();
+
+	memset(m_TPortTransmitProcess.aBuf, 0x00, USBUART_BUFFER_SIZE);
+	memset(m_TPortListenProcess.aBuf, 0x00, USBUART_BUFFER_SIZE);
+
+	// set next state
+	m_TPortModbusTransaction.TState = MODBUS_TRANSMISSION;
+
+	// process
+	/** NOTES:
+	 * 1) send request packet,
+	 * 2) get response packet.
+	 */
+	while (TRUE)
+	{
+		switch (m_TPortModbusTransaction.TState)
+		{
+		case MODBUS_TRANSMISSION:
+
+
+			break;
+
+
+		case MODBUS_LISTENING:
+
+
+			break;
+	
+			//MODBUS_COMPLETE,
+			//MODBUS_TIMEOUT
+
+
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
+
 // stop process
 void WINCOMPORT_ListenCancel(void)
 {
@@ -316,7 +402,7 @@ void WINCOMPORT_GetRxData(BYTE* aRxData, WORD wCount)
 	}
 
 	// copy
-	memcpy(aRxData, m_TPortListenProcess.aRxBuf, wCount);
+	memcpy(aRxData, m_TPortListenProcess.aBuf, wCount);
 }
 
 

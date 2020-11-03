@@ -22,6 +22,9 @@ typedef enum
 } VCPThread_OpStatus_t;
 
 
+#define TIMER1					1
+
+
 ///////////////////////////////////////////////////////////
 // globals
 ///////////////////////////////////////////////////////////
@@ -51,8 +54,10 @@ protected:
 
 // Implementation
 protected:
-	HICON m_hIcon;
+	WinComPort_ModbusProcess m_TModbusProcess;
 
+	HICON m_hIcon;
+	UINT_PTR m_nTimer;
 	// Generated message map functions
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
@@ -70,13 +75,23 @@ public:
 	
 
 	// CDC device OPs
-	VCPThread_OpStatus_t ConnectDevice();
+	VCPThread_OpStatus_t ConnectDevice(void);
 	void Thread_ListenComPort(void);
+	void Thread_TransmitComPort(void);
+	void Thread_ModbusSend(void);
+	
+	// support
+	void PrintResult(WinComPort_ReturnCodes_t TResult);
+	void GetDataFromStrHex(char* strInput, BYTE* aDataOutput);
+	void GetStrHexFromData(BYTE* aDataInput, char* strOutput, WORD wCount);
 
 	// control settings
 	CString m_strEdit_PortAddr;
 	CKeyEdit m_EditCommand;
 	CEdit m_EditOutput;
+
+	void StartTimer(void);
+	void StopTimer(void);
 
 	afx_msg void OnBnClickedButtonConnect();
 	afx_msg void OnBnClickedButtonClearlog();
@@ -86,4 +101,8 @@ public:
 	afx_msg void OnBnClickedButtonRxGetStatus();
 	afx_msg void OnBnClickedButtonTxSend();
 	afx_msg void OnBnClickedButtonTxGetStatus();
+	afx_msg void OnBnClickedButtonModbusSend();
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };
+
+// EOF
