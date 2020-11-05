@@ -54,10 +54,11 @@ protected:
 
 // Implementation
 protected:
-	WinComPort_ModbusProcess m_TModbusProcess;
+	BYTE m_bModbusActive;
 
 	HICON m_hIcon;
 	UINT_PTR m_nTimer;
+
 	// Generated message map functions
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
@@ -78,11 +79,12 @@ public:
 	VCPThread_OpStatus_t ConnectDevice(void);
 	void Thread_ListenComPort(void);
 	void Thread_TransmitComPort(void);
-	void Thread_ModbusSend(void);
+	void Thread_ModbusSend_simple(void);
+	void Thread_ModbusSend_complex(void);
 	
 	// support
 	void PrintResult(WinComPort_ReturnCodes_t TResult);
-	void GetDataFromStrHex(char* strInput, BYTE* aDataOutput);
+	void GetDataFromStrHex(char* strInput, BYTE* aDataOutput, WORD* wCountRead);
 	void GetStrHexFromData(BYTE* aDataInput, char* strOutput, WORD wCount);
 
 	// control settings
@@ -103,6 +105,10 @@ public:
 	afx_msg void OnBnClickedButtonTxGetStatus();
 	afx_msg void OnBnClickedButtonModbusSend();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	CString m_strEdit_PortBaudrate;
+	CString m_strEdit_ModbusTimeout;
+	afx_msg void OnBnClickedButtonConnect2();
+	afx_msg void OnBnClickedButtonModbusSend2();
 };
 
 // EOF

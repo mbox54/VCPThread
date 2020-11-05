@@ -50,7 +50,7 @@ typedef HANDLE hSerialCDC;
 BYTE COMPort_CheckStatus(hSerialCDC* hPort);
 BYTE COMPort_Open(hSerialCDC* hPort, DWORD dwComNum);
 BYTE COMPort_SetConfig(hSerialCDC* hPort, DWORD dwBaudRate, UCHAR ucByteSize, UCHAR ucStopBits, UCHAR ucParity, BOOL bCTS_flow_ctrl, BOOL bDSR_flow_ctrl);
-BYTE COMPort_Read(hSerialCDC* hPort, UCHAR* v_ReadBuffer, DWORD* dwNumBytesRead);
+BYTE COMPort_Read(hSerialCDC* hPort, UCHAR* v_ReadBuffer, DWORD dwCount, DWORD* dwNumBytesRead);
 BYTE COMPort_Write(hSerialCDC* hPort, UCHAR* v_WriteBuffer, WORD wCount, DWORD* dwNumBytesWritten);
 BYTE COMPort_Close(hSerialCDC* hPort);
 

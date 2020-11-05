@@ -84,7 +84,6 @@ BYTE COMPort_Open(hSerialCDC * hPort, DWORD dwComNum)
 		return COM_PORT_BAD_CONNECT;
 	}
 
-
 	// > Set the Read and Write API time outs.
 	// These Values will be over ridden during read/write API timeout.
 	COMMTIMEOUTS objTimeout;
@@ -94,7 +93,6 @@ BYTE COMPort_Open(hSerialCDC * hPort, DWORD dwComNum)
 
 	// Set up the time out value for ReadFile and WriteFile API.
 	SetCommTimeouts(*hPort, &objTimeout);
-
 
 	return COM_PORT_OP_SUCCESS;
 }
@@ -155,7 +153,7 @@ BYTE COMPort_SetConfig(hSerialCDC * hPort, DWORD dwBaudRate, UCHAR ucByteSize, U
 }
 
 
-BYTE COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRead)
+BYTE COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD dwCount, DWORD* dwNumBytesRead)
 {
 	// check ComPort_Handler
 	BYTE ucComPortStatus = COMPort_CheckStatus(hPort);
@@ -165,53 +163,33 @@ BYTE COMPort_Read(hSerialCDC * hPort, UCHAR * v_ReadBuffer, DWORD * dwNumBytesRe
 	}
 
 	BYTE errNumber = 0;
-	DWORD dwNumBytesRead_Cyc;
-	DWORD dwNumBytesRead_All = 0;
-	while ((dwNumBytesRead_All < COM_PORT_OP_FAILURE) && (errNumber == 0))
+	BOOL bReadStatus = ReadFile(*hPort, v_ReadBuffer, dwCount, dwNumBytesRead, NULL);
+
+	// > Check Valid PROC
+	if (bReadStatus == FALSE)
 	{
+		// [ERROR: PORT OP FAILURE]
 
-		BOOL bReadStatus = ReadFile(*hPort, v_ReadBuffer + dwNumBytesRead_All, USBUART_BUFFER_SIZE, &dwNumBytesRead_Cyc, NULL);
+		*dwNumBytesRead = GetLastError();
 
-		// > Check Valid PROC
-		if (bReadStatus == FALSE)
-		{
-			// [ERROR: PORT OP FAILURE]
+		errNumber = COM_PORT_OP_FAILURE;
+	}
+	else if (dwCount != *dwNumBytesRead)
+	{
+		// [ERROR: TRANSFER MISMATCH]
 
-			*dwNumBytesRead = GetLastError();
+		errNumber = COM_PORT_OP_MISMATCH;
+	}
 
-			errNumber = COM_PORT_OP_FAILURE;
-		}
-		else
-		{
-			// NOTE: BIG_Buffer MUST be [Times x USBUART_BUFFER_SIZE] or equal.
-			// or this PROTECTOR consequencesed to incorrected work!
-			if (dwNumBytesRead_Cyc != USBUART_BUFFER_SIZE)
-			{
-				// [ERROR: TRANSFER MISMATCH]
+	// safe check
+	if (errNumber != COM_PORT_OP_SUCCESS)
+	{
+		// [ERROR CASE]
 
-				errNumber = COM_PORT_OP_MISMATCH;
-			}
-		}
+		CloseHandle(*hPort);
 
-		if (errNumber != 0)
-		{
-			// [ERROR CASE]
-
-			CloseHandle(*hPort);
-
-			return errNumber;
-		}
-		else
-		{
-			// [SUCCESS READ]
-
-			dwNumBytesRead_All += USBUART_BUFFER_SIZE;
-
-			*dwNumBytesRead = dwNumBytesRead_All;
-		}
-
-	} //while ((dwNumBytesRead_All < COM_PORT_OP_FAILURE) && (errNumber == 0)) 	
-
+		return errNumber;
+	}
 
 	return COM_PORT_OP_SUCCESS;
 }
@@ -264,11 +242,16 @@ BYTE COMPort_Write(hSerialCDC * hPort, UCHAR * v_WriteBuffer, WORD wCount, DWORD
 
 
 BYTE COMPort_Close(hSerialCDC * hPort)
-{
-	// TODO:
+{		
 	// check COM_Handler for NULL
+	if (*hPort == NULL)
+	{
+		// [NULL]
 
-	// > Set COM Port Config
+		return COM_PORT_IS_EMPTY;
+	}
+
+	// > PROC Close
 	if (CloseHandle(*hPort) == FALSE)
 	{
 		// [ERROR: PORT OP FAILURE]
@@ -276,6 +259,8 @@ BYTE COMPort_Close(hSerialCDC * hPort)
 		return COM_PORT_OP_FAILURE;
 	}
 
+	// reset pointer
+	*hPort = NULL;
 
 	return COM_PORT_OP_SUCCESS;
 }

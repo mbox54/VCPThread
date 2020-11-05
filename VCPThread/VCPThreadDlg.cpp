@@ -107,6 +107,8 @@ END_MESSAGE_MAP()
 CVCPThreadDlg::CVCPThreadDlg(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_VCPTHREAD_DIALOG, pParent)
 	, m_strEdit_PortAddr(_T(""))
+	, m_strEdit_PortBaudrate(_T(""))
+	, m_strEdit_ModbusTimeout(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -117,6 +119,8 @@ void CVCPThreadDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_EDIT_COMMAND, m_EditCommand);
 	DDX_Control(pDX, IDC_EDIT_OUTPUT, m_EditOutput);
 	DDX_Text(pDX, IDC_EDIT_COMPORT_ADDR, m_strEdit_PortAddr);
+	DDX_Text(pDX, IDC_EDIT_COMPORTBR, m_strEdit_PortBaudrate);
+	DDX_Text(pDX, IDC_EDIT_MODBUS_TIMEOUT, m_strEdit_ModbusTimeout);
 }
 
 BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
@@ -132,6 +136,8 @@ BEGIN_MESSAGE_MAP(CVCPThreadDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_TX_GET_STATUS, &CVCPThreadDlg::OnBnClickedButtonTxGetStatus)
 	ON_BN_CLICKED(IDC_BUTTON_MODBUS_SEND, &CVCPThreadDlg::OnBnClickedButtonModbusSend)
 	ON_WM_TIMER()
+	ON_BN_CLICKED(IDC_BUTTON_CONNECT2, &CVCPThreadDlg::OnBnClickedButtonConnect2)
+	ON_BN_CLICKED(IDC_BUTTON_MODBUS_SEND2, &CVCPThreadDlg::OnBnClickedButtonModbusSend2)
 END_MESSAGE_MAP()
 
 
@@ -261,9 +267,27 @@ void CVCPThreadDlg::Thread_TransmitComPort(void)
 }
 
 
-void CVCPThreadDlg::Thread_ModbusSend(void)
+void CVCPThreadDlg::Thread_ModbusSend_simple(void)
 {
+	// create new thread with no params
+	AfxBeginThread(WINCOMPORT_ModbusTransact_simple, NULL);
+}
 
+
+void CVCPThreadDlg::Thread_ModbusSend_complex(void)
+{
+	// set Request packet data
+	// !debug test data
+	CString str = "01 04 00 00 00 01 31 CA";
+	BYTE aDataBuf[256];
+	WORD wDataCount = 0;
+	GetDataFromStrHex((char*)(LPCSTR)(LPCWSTR)str, aDataBuf, &wDataCount);
+	
+	// set Tx config
+	WINCOMPORT_SetPacketData(aDataBuf, wDataCount);
+
+	// start thread ModbusTransaction
+	AfxBeginThread(WINCOMPORT_ModbusTransact_complex, NULL);
 }
 
 
@@ -326,13 +350,12 @@ void CVCPThreadDlg::PrintResult(WinComPort_ReturnCodes_t TResult)
 		break;
 	}
 
-	str.Append(_T("/n"));
-
+	str.Append(_T("\n"));
 	Trace(str);
 }
 
 
-void CVCPThreadDlg::GetDataFromStrHex(char* strInput, BYTE* aDataOutput)
+void CVCPThreadDlg::GetDataFromStrHex(char* strInput, BYTE* aDataOutput, WORD* wCountRead)
 {
 	/** FORMAT:
 	 * strInput = "XX XX XX"
@@ -360,6 +383,8 @@ void CVCPThreadDlg::GetDataFromStrHex(char* strInput, BYTE* aDataOutput)
 	{
 		// [NO VALUES]
 
+		*wCountRead = 0;
+
 		return;
 	}
 
@@ -385,6 +410,8 @@ void CVCPThreadDlg::GetDataFromStrHex(char* strInput, BYTE* aDataOutput)
 		aDataOutput[wSymbolIndex] = (BYTE)strtoul(cStrBuf, NULL, 16);
 		wSymbolIndex++;
 	}
+
+	*wCountRead = wSymbolIndex;
 }
 
 
@@ -422,12 +449,22 @@ void CVCPThreadDlg::ExecuteCommand()
 
 int CVCPThreadDlg::InitProg()
 {
+	// app properties
+	m_bModbusActive = 0;
+
 	// Printout in the basic command line window.
 	Trace(_T("Elcub(c) 2020\n\n"));
 
 	// Output control State
 	Trace(_T("Connect to device to start. \n"));
 
+	// default Edit text
+	m_strEdit_PortAddr = "4";
+	m_strEdit_PortBaudrate = "115200";
+	m_strEdit_ModbusTimeout = "1000";
+	UpdateData(FALSE);
+
+	StartTimer();
 
 	return 0;
 }
@@ -436,14 +473,15 @@ int CVCPThreadDlg::InitProg()
 VCPThread_OpStatus_t CVCPThreadDlg::ConnectDevice()
 {
 	UpdateData(TRUE);
-	DWORD dwComNum = (DWORD)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
+	BYTE ucComNum = (BYTE)_tcstoul(m_strEdit_PortAddr, NULL, 10);	
+	DWORD dwBaudrate = (DWORD)_tcstoul(m_strEdit_PortBaudrate, NULL, 10);
 
 	// > Connect to USBUART Device
 	// Input Conf Parameter
-	Trace(_T("trying to connect COM%d \n"), dwComNum, 4);
+	Trace(_T("trying to connect COM%d on baudrate: %d\n"), ucComNum, dwBaudrate);
 
 	// > Open USBUART Device	 
-	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open_SyncMode(dwComNum);
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Open_SyncMode(ucComNum, dwBaudrate);
 	
 	if (TResult != WINCOMPORT_OP_SUCCESS)
 	{
@@ -516,7 +554,6 @@ void CVCPThreadDlg::OnBnClickedButtonTxSend()
 
 	//sprintf(TxBuf, (LPCSTR)(LPCWSTR)m_strCommand, "%s");
 	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious((BYTE*)(LPCSTR)(LPCWSTR)m_strCommand, m_strCommand.GetLength());
-
 	PrintResult(TResult);
 }
 
@@ -524,21 +561,130 @@ void CVCPThreadDlg::OnBnClickedButtonTxSend()
 void CVCPThreadDlg::OnBnClickedButtonTxGetStatus()
 {
 	//char* strTest = "00 01 02 03 10 A0 A2 FF";
-	
 	//GetDataFromStrHex(strTest, aData);
+	char cBuf[256];
+	BYTE aRxData[256];
+	
+	WINCOMPORT_GetRxData(aRxData, WINCOMPORT_GetRxCount());
+	GetStrHexFromData(aRxData, cBuf, WINCOMPORT_GetRxCount());
 
-	GetStrHexFromData(aData, cTest, 5);
+	// output to controls
+	Trace((CString)cBuf);
 }
 
 
 void CVCPThreadDlg::OnBnClickedButtonModbusSend()
 {
+	// Prepare Request packet
+	m_EditCommand.GetWindowText(m_strCommand);
+	CString strTest = "01 04 00 00 00 01 31 CA";
+	WORD wCountRead = 0;
+	char TxBuf[256];
+	sprintf(TxBuf, "%s", (CStringA)strTest);
+	GetDataFromStrHex(TxBuf, aData, &wCountRead);
 
+	WINCOMPORT_SetPacketData(aData, wCountRead);
+	WINCOMPORT_SetRxCountLength(7);
 
+	// activate timer modbus control
+	m_bModbusActive = 1;
+
+	// Modbus process
+	Thread_ModbusSend_simple();
 }
 
 
 void CVCPThreadDlg::OnTimer(UINT_PTR nIDEvent)
 {	
+	// check modbus process
+	if (m_bModbusActive)
+	{
+		// [ACTIVE]
+
+		// check state
+		if (WINCOMPORT_GetModbusState() == MODBUS_COMPLETE)
+		{
+			// [MODBUS COMPLETE]
+
+			// Output Responce packet data
+			BYTE aRxBuf[256];
+			WINCOMPORT_GetRxData(aRxBuf, 7);
+
+			char cBuf[256];
+			GetStrHexFromData(aRxBuf, cBuf, 7);
+			cBuf[7 * 3 - 1] = '\0';
+
+			Trace((CString)cBuf);
+			Trace(_T("\n"));
+			Trace(_T("Operation complete.\n\n"));
+
+			// deactivate modbus proc control
+			m_bModbusActive = 0;
+		}
+		else if (WINCOMPORT_GetModbusState() == MODBUS_TIMEOUT)
+		{
+			// [MODBUS TIMEOUT ERROR]
+
+			Trace(_T("Operation timeout!\n"));
+			Trace(_T("Rx buffer data:\n"));
+
+			// Output Responce packet data
+			BYTE aRxBuf[256];
+
+			char cBuf[256];
+			GetStrHexFromData(aRxBuf, cBuf, 7);
+			cBuf[7 * 3 - 1] = '\0';
+
+			Trace((CString)cBuf);
+			Trace(_T("\n\n"));
+			
+			// deactivate modbus proc control
+			m_bModbusActive = 0;
+		}
+
+	}
+
+
 	CDialog::OnTimer(nIDEvent);
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonConnect2()
+{
+	Trace(_T("Closing device... "));
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Close();
+
+	PrintResult(TResult);
+}
+
+
+void CVCPThreadDlg::OnBnClickedButtonModbusSend2()
+{
+	//	Thread_ModbusSend();
+
+	m_EditCommand.GetWindowText(m_strCommand);
+	CString strTest = "01 04 00 00 00 01 31 CA";
+	WORD wCountRead = 0;
+	char TxBuf[256];
+	sprintf(TxBuf, "%s", (CStringA)strTest);
+	GetDataFromStrHex(TxBuf, aData, &wCountRead);
+
+	//	char TxBuf[256];
+	//	sprintf(TxBuf, (LPCSTR)(LPCWSTR)m_strCommand, "%s");
+
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious(aData, wCountRead);
+	PrintResult(TResult);
+
+	Sleep(20);
+
+	BYTE aRxBuf[256];
+	TResult = WINCOMPORT_Read_Instantenious(aRxBuf, 7);
+
+	char cBuf[256];
+	GetStrHexFromData(aRxBuf, cBuf, 7);
+	cBuf[7 * 3 - 1] = '\0';
+
+	Trace((CString)cBuf);
+	Trace(_T("\n"));
+	Trace(_T("Operation complete.\n\n"));
 }

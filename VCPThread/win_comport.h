@@ -54,6 +54,7 @@ typedef enum
 	WINCOMPORT_OP_FAILURE,
 	WINCOMPORT_ABORT_PARAM_MISMATCH,
 	WINCOMPORT_ERR_WRITTEN_MISMATCH
+
 } WinComPort_ReturnCodes_t;
 
 
@@ -63,7 +64,8 @@ typedef enum
 	LISTEN_STATES_LISTENING,
 	LISTEN_STATES_RECEIVING,
 	LISTEN_STATES_EXIT_ERROR,
-	LISTEN_STATES_DEACTIVATED
+	LISTEN_STATES_COMPLETE
+
 } WinComPort_ListenStates;
 
 
@@ -95,7 +97,7 @@ typedef enum
 WinComPort_ReturnCodes_t WINCOMPORT_Init(void);
 
 // COM-port open
-WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum);
+WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum, DWORD dwBaudrate);
 
 // COM-port close
 WinComPort_ReturnCodes_t WINCOMPORT_Close(void);
@@ -113,16 +115,20 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput);
 // ComPort Rx_Listen: service routines
 void WINCOMPORT_ListenCancel(void);
 WinComPort_ListenStates WINCOMPORT_GetListenState(void);
+void WINCOMPORT_SetRxCountLength(WORD wCount);
 WORD WINCOMPORT_GetRxCount(void);
 void WINCOMPORT_GetRxData(BYTE * aRxData, WORD wCount);
 
 // * Tx OP: Thread header * /UINT Funct(LPVOID par);
 UINT WINCOMPORT_Transmit(LPVOID rawInput);
+void WINCOMPORT_SetPacketData(BYTE* aData, WORD wCount);
+WORD WINCOMPORT_GetTxCount(void);
 
 // *Modbus transaction * /UINT Funct(LPVOID par);
-UINT WINCOMPORT_ModbusTransaction(LPVOID rawInput);
-
-
+// *Modbus transaction * /UINT Funct(LPVOID par);
+UINT WINCOMPORT_ModbusTransact_simple(LPVOID rawInput);
+UINT WINCOMPORT_ModbusTransact_complex(LPVOID rawInput);
+WinComPort_ModbusProcess WINCOMPORT_GetModbusState(void);
 
 #endif	// __WIN_COMPORT_H
 

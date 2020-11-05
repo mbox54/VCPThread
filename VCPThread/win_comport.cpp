@@ -25,7 +25,7 @@
 // Properties
 ////////////////////////////////////////////////////////////
 // ComPort handler
-hSerialCDC* m_hPort;
+hSerialCDC m_hPort;
 
 // ComPort Rx_Buf
 struct PortListenProcess_t
@@ -34,6 +34,10 @@ struct PortListenProcess_t
 	WinComPort_ListenStates TState;
 	BYTE aBuf[USBUART_BUFFER_SIZE * 4];
 	WORD wRxIndex;
+
+	BYTE bTimeoutStopEnable;
+	WORD wTimeoutStopValue;
+	WORD wTimeoutValue;
 
 } m_TPortListenProcess;
 
@@ -62,6 +66,7 @@ struct PortModbusTransaction_t
 WinComPort_ReturnCodes_t WINCOMPORT_Init(void)
 {
 	// init common
+	m_hPort = NULL;
 
 	// init PortListenProcess
 	m_TPortListenProcess.bEnable = FALSE;
@@ -70,12 +75,12 @@ WinComPort_ReturnCodes_t WINCOMPORT_Init(void)
 }
 
 // Open
-WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum)
+WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum, DWORD dwBaudrate)
 {
 	// > Open USBUART Device	
 	char szPort[COM_PORT_STRING_LEN];
 	sprintf_s(szPort, sizeof(szPort), "\\\\.\\COM%d", dwComNum);
-	int iResult = COMPort_Open(m_hPort, dwComNum);
+	int iResult = COMPort_Open(&m_hPort, dwComNum);
 
 	WinComPort_ReturnCodes_t TResult = WINCOMPORT_UNKNOWN;
 	// check OP state
@@ -102,7 +107,7 @@ WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum)
 
 	// > Set COM Port Config
 	//iResult = COMPort_SetConfig(&m_hPort, UART_3M_BAUDRATE, 8, ONESTOPBIT, ONESTOPBIT, 1, 0);
-	iResult = COMPort_SetConfig(m_hPort, 9600, 8, ONESTOPBIT, 0, 0, 0);
+	iResult = COMPort_SetConfig(&m_hPort, dwBaudrate, 8, ONESTOPBIT, 0, 0, 0);
 
 	// check OP state
 	if (iResult != COM_PORT_OP_SUCCESS)
@@ -133,7 +138,7 @@ WinComPort_ReturnCodes_t WINCOMPORT_Open_SyncMode(BYTE dwComNum)
 WinComPort_ReturnCodes_t WINCOMPORT_Close(void)
 {
 	// > Close COM Port
-	BYTE ucResult = COMPort_Close(m_hPort);
+	BYTE ucResult = COMPort_Close(&m_hPort);
 
 //	fclose(fs);
 
@@ -142,15 +147,20 @@ WinComPort_ReturnCodes_t WINCOMPORT_Close(void)
 	switch (ucResult)
 	{
 	case COM_PORT_OP_SUCCESS:
-
 		// set return code
 		TResult = WINCOMPORT_OP_SUCCESS;
 
 		break;
 
 
-	case COM_PORT_OP_FAILURE:
+	case COM_PORT_IS_EMPTY:
+		// set return code
+		TResult = WINCOMPORT_PORT_IS_EMPTY;
 
+		break;
+
+
+	case COM_PORT_OP_FAILURE:
 		// set return code
 		TResult = WINCOMPORT_OP_FAILURE;
 
@@ -158,16 +168,56 @@ WinComPort_ReturnCodes_t WINCOMPORT_Close(void)
 
 
 	default:
+		// err
+		TResult = WINCOMPORT_UNKNOWN;
+
 		break;
 	}
 
 	return TResult;
 }
 
-// TODO
+
 WinComPort_ReturnCodes_t WINCOMPORT_Read_Instantenious(BYTE* aData, WORD wCount)
 {
-	return WinComPort_ReturnCodes_t();
+	m_TPortListenProcess.TState = LISTEN_STATES_RECEIVING;
+
+	DWORD dwNumBytesRead = 0;
+	BYTE ucResult = COMPort_Read(&m_hPort, aData, wCount, &dwNumBytesRead);
+
+	// check result
+	if (ucResult != COM_PORT_OP_SUCCESS)
+	{
+		// [FAILURE]
+
+		// set state
+		m_TPortTransmitProcess.TState = TRANSMIT_STATES_EXIT_ERROR;
+
+		switch (ucResult)
+		{
+		case COM_PORT_OP_FAILURE:
+			// set return code
+			return WINCOMPORT_OP_FAILURE;
+
+			break;
+
+
+		case COM_PORT_OP_MISMATCH:
+			// set return code
+			return WINCOMPORT_ERR_WRITTEN_MISMATCH;
+
+			break;
+
+
+		default:
+			break;
+		}
+	}
+
+	// set state
+	m_TPortTransmitProcess.TState = TRANSMIT_STATES_COMPLETED;
+
+	return WINCOMPORT_OP_SUCCESS;
 }
 
 
@@ -176,7 +226,7 @@ WinComPort_ReturnCodes_t WINCOMPORT_Write_Instantenious(BYTE* aData, WORD wCount
 	m_TPortTransmitProcess.TState = TRANSMIT_STATES_TRANSMISSION;
 
 	DWORD dwCountWritten = 0;
-	BYTE ucResult = COMPort_Write(m_hPort, aData, wCount, &dwCountWritten);
+	BYTE ucResult = COMPort_Write(&m_hPort, aData, wCount, &dwCountWritten);
 
 	// check result
 	if (ucResult != COM_PORT_OP_SUCCESS)
@@ -232,36 +282,60 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 	// try open
 //	FILE* fs = fopen(file_name, "w");
 
-
-	
-
 	// config ComPort Rx mode
-	if (!SetCommMask(*m_hPort, EV_RXCHAR))
+	// setting communications event mask
+	if (!SetCommMask(m_hPort, EV_RXCHAR))
 	{
-		// [ Error setting communications event mask ]
+		// [ERROR]
 
-//		return COM_PORT_OP_FAILURE;
+		return WINCOMPORT_OP_FAILURE;
 	}
-
 
 	// * Receive *
 	DWORD dwCommEvent;
 	DWORD dwRead;
 	char  chRead;
 
+	UINT64 u64Time = GetTickCount64();
 	m_TPortListenProcess.wRxIndex = 0;
 	while (m_TPortListenProcess.bEnable)
 	{
+		// check timeout
+		if (m_TPortListenProcess.bTimeoutStopEnable)
+		{
+			/** NOTES:
+			 * GetTickCount64() counted from App start, always incrementing.
+			 */ 
+			if (GetTickCount64() - u64Time > m_TPortListenProcess.wTimeoutStopValue)
+			{
+				// [TIMEOUT]
+
+				// abort OP
+				m_TPortListenProcess.bEnable = FALSE;
+
+				// set state
+				m_TPortListenProcess.TState = LISTEN_STATES_COMPLETE;
+
+				// set op period
+				m_TPortListenProcess.wTimeoutValue = GetTickCount64() - u64Time;
+
+				return WINCOMPORT_OP_SUCCESS;
+			}
+		}
+		
 		// check for Rx
-		if (WaitCommEvent(*m_hPort, &dwCommEvent, NULL))
+		if (WaitCommEvent(m_hPort, &dwCommEvent, NULL))
 		{
 			// [RX OCCURED]
+
+			// reset time
+			u64Time = GetTickCount64();
 
 			// set state
 			m_TPortListenProcess.TState = LISTEN_STATES_RECEIVING;
 
 			// get all Rx data
-			while (ReadFile(*m_hPort, &chRead, 1, &dwRead, NULL))
+			while (ReadFile(m_hPort, &chRead, 1, &dwRead, NULL))
 			{
 				// [Read OP success]
 
@@ -294,6 +368,9 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 			// set state
 			m_TPortListenProcess.TState = LISTEN_STATES_EXIT_ERROR;
 
+			// set op period
+			m_TPortListenProcess.wTimeoutValue = GetTickCount64() - u64Time;
+
 			return WINCOMPORT_OP_FAILURE;
 
 			break;
@@ -306,7 +383,10 @@ UINT WINCOMPORT_ListenStart(LPVOID rawInput)
 
 	// NOTE: Deactivated case
 	// set state
-	m_TPortListenProcess.TState = LISTEN_STATES_DEACTIVATED;
+	m_TPortListenProcess.TState = LISTEN_STATES_COMPLETE;
+
+	// set op period
+	m_TPortListenProcess.wTimeoutValue = GetTickCount64() - u64Time;
 
 	return WINCOMPORT_OP_SUCCESS;
 }
@@ -326,14 +406,77 @@ UINT WINCOMPORT_Transmit(LPVOID rawInput)
 	return 0;
 }
 
-UINT WINCOMPORT_ModbusTransaction(LPVOID rawInput)
+
+void WINCOMPORT_SetPacketData(BYTE* aData, WORD wCount)
+{
+	// reset buffer
+	memset(m_TPortTransmitProcess.aBuf, 0x00, USBUART_BUFFER_SIZE);
+
+	// set values
+	memcpy(m_TPortTransmitProcess.aBuf, aData, wCount);
+	m_TPortTransmitProcess.wCount = wCount;
+}
+
+
+WORD WINCOMPORT_GetTxCount(void)
+{
+	return m_TPortTransmitProcess.wCount;
+}
+
+
+UINT WINCOMPORT_ModbusTransact_simple(LPVOID rawInput)
+{
+	// set state
+	m_TPortModbusTransaction.TState = MODBUS_INIT;
+
+	// process
+	/** NOTES:
+	 * 1) send request packet,
+	 * 2) get response packet.
+	 */
+	
+	// set state
+	m_TPortModbusTransaction.TState = MODBUS_TRANSMISSION;
+
+	WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious(m_TPortTransmitProcess.aBuf, m_TPortTransmitProcess.wCount);	
+	if (TResult != WINCOMPORT_OP_SUCCESS)
+	{
+		// [ERROR]
+
+		// set state
+		m_TPortModbusTransaction.TState = MODBUS_TIMEOUT;
+
+		return 0;
+	}
+
+	// pause for MCU proc request
+	Sleep(20);
+
+	// set state
+	m_TPortModbusTransaction.TState = MODBUS_LISTENING;
+
+	TResult = WINCOMPORT_Read_Instantenious(m_TPortListenProcess.aBuf, m_TPortListenProcess.wRxIndex);
+
+	if (TResult != WINCOMPORT_OP_SUCCESS)
+	{
+		// [ERROR]
+
+		// set state
+		m_TPortModbusTransaction.TState = MODBUS_TIMEOUT;
+
+		return 0;
+	}
+
+	// set state
+	m_TPortModbusTransaction.TState = MODBUS_COMPLETE;
+}
+
+
+UINT WINCOMPORT_ModbusTransact_complex(LPVOID rawInput)
 {
 	// init process
 	m_TPortModbusTransaction.TState = MODBUS_INIT;
 	m_TPortModbusTransaction.u64OperationTime = GetTickCount64();
-
-	memset(m_TPortTransmitProcess.aBuf, 0x00, USBUART_BUFFER_SIZE);
-	memset(m_TPortListenProcess.aBuf, 0x00, USBUART_BUFFER_SIZE);
 
 	// set next state
 	m_TPortModbusTransaction.TState = MODBUS_TRANSMISSION;
@@ -348,18 +491,43 @@ UINT WINCOMPORT_ModbusTransaction(LPVOID rawInput)
 		switch (m_TPortModbusTransaction.TState)
 		{
 		case MODBUS_TRANSMISSION:
+			// send request
+		{
+			WinComPort_ReturnCodes_t TResult = WINCOMPORT_Write_Instantenious(m_TPortTransmitProcess.aBuf, m_TPortTransmitProcess.wCount);
 
+			// set next state
+			m_TPortModbusTransaction.TState = MODBUS_LISTENING;
+		}
 
-			break;
+		break;
 
 
 		case MODBUS_LISTENING:
+		{
+			// get responce
+			UINT uiResult = WINCOMPORT_ListenStart(0);
+
+			// set next state
+			if (m_TPortListenProcess.TState == LISTEN_STATES_COMPLETE)
+			{
+				m_TPortModbusTransaction.TState = MODBUS_COMPLETE;
+			}
+			else
+			{
+				m_TPortModbusTransaction.TState = MODBUS_TIMEOUT;
+			}
+		}
+
+		break;
 
 
-			break;
-	
-			//MODBUS_COMPLETE,
-			//MODBUS_TIMEOUT
+		case MODBUS_COMPLETE:
+		case MODBUS_TIMEOUT:
+		{
+			// [EXIT]
+
+			return 0;
+		}
 
 
 		default:
@@ -368,6 +536,12 @@ UINT WINCOMPORT_ModbusTransaction(LPVOID rawInput)
 	}
 
 	return 0;
+}
+
+
+WinComPort_ModbusProcess WINCOMPORT_GetModbusState(void)
+{
+	return m_TPortModbusTransaction.TState;
 }
 
 // stop process
@@ -380,6 +554,12 @@ void WINCOMPORT_ListenCancel(void)
 WinComPort_ListenStates WINCOMPORT_GetListenState(void)
 {
 	return m_TPortListenProcess.TState;
+}
+
+
+void WINCOMPORT_SetRxCountLength(WORD wCount)
+{
+	m_TPortListenProcess.wRxIndex = wCount;
 }
 
 
